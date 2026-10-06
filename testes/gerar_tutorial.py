@@ -719,4 +719,11 @@ if __name__ == '__main__':
     destino = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.join(PROJ, f'Tutorial_DiscoFacil_{versao.APP_VERSION}.pdf')
     fotos, _ = capturar()
     print('fotos:', sorted(fotos))
+    # as figuras do README do GitHub (docs/telas), as mesmas do tutorial
+    telas = os.path.join(PROJ, 'docs', 'telas')
+    os.makedirs(telas, exist_ok=True)
+    for nome in ('principal', 'editor', 'pendentes', 'editor_sem_discogs', 'config_chaves'):
+        if fotos.get(nome):
+            Image.open(fotos[nome]).convert('RGB').quantize(colors=256, method=2).save(
+                os.path.join(telas, nome + '.png'), optimize=True)
     print('pdf:', montar_pdf(fotos, destino, versao.APP_VERSION))
