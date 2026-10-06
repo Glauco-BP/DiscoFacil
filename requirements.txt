@@ -1,0 +1,10 @@
+# DiscoFácil - bibliotecas Python
+# Instale com: pip install -r requirements.txt
+
+numpy>=1.24.0          # análise do áudio (silêncios, envelope)
+yt-dlp>=2024.1.1       # download do YouTube
+pydub>=0.25.1          # leitura de áudio
+mutagen>=1.47.0        # tags dos MP3
+requests>=2.31.0       # Discogs, MusicBrainz, capas
+sounddevice>=0.4       # som da tela "Conferir cortes" (sem ela a tela abre, só não toca)
+groq>=0.4.0            # opcional: sugestões do Groq (só com chave)

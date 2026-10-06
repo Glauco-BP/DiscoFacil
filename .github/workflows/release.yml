@@ -1,0 +1,64 @@
+# Gera o DiscoFacil.exe num Windows do GitHub e publica em "Releases".
+# Dispara sozinho quando uma versão é marcada (git tag v12.19 && git push --tags),
+# ou à mão, na aba Actions ("Run workflow").
+name: Gerar o .exe e publicar a versão
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Bibliotecas
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: FFmpeg (embutido no .exe)
+        shell: pwsh
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip' -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_temp -Force
+          New-Item -ItemType Directory -Force ffmpeg_bin | Out-Null
+          Get-ChildItem ffmpeg_temp -Recurse -Include ffmpeg.exe,ffprobe.exe | Copy-Item -Destination ffmpeg_bin
+          if (!(Test-Path ffmpeg_bin/ffmpeg.exe) -or !(Test-Path ffmpeg_bin/ffprobe.exe)) { throw 'FFmpeg não encontrado' }
+
+      - name: Gerar o .exe
+        run: python -m PyInstaller main.spec --noconfirm
+
+      - name: Montar o zip
+        shell: pwsh
+        run: |
+          $versao = (python -c "import versao; print(versao.APP_VERSION)").Trim()
+          New-Item -ItemType Directory -Force pacote | Out-Null
+          Copy-Item dist/DiscoFacil.exe pacote/
+          Copy-Item Tutorial_DiscoFacil_*.pdf pacote/ -ErrorAction SilentlyContinue
+          Copy-Item LICENSE, TERCEIROS.md, README.md pacote/
+          Compress-Archive -Path pacote/* -DestinationPath "DiscoFacil_$versao.zip" -Force
+          "ZIP=DiscoFacil_$versao.zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Guardar o zip (aparece na execução, em Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiscoFacil-windows
+          path: ${{ env.ZIP }}
+
+      - name: Publicar em Releases
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP }}
+          body_path: NOTAS_DA_VERSAO.md

@@ -1,0 +1,24 @@
+# Configuração do usuário: tem as chaves (Discogs, Groq, YouTube). NUNCA sobe.
+config.json
+config.json.antigo
+
+# Gerados pelo Python, pelos testes e pelo build
+__pycache__/
+*.pyc
+.ruff_cache/
+.pytest_cache/
+testes/.tmp/
+build/
+dist/
+EXE_PRONTO/
+ffmpeg_bin/
+ffmpeg_temp/
+*.exe
+
+# Faixas reais usadas num teste (música com direitos autorais: só no computador de quem desenvolve)
+testes/dados/*.mp3
+
+# Pastas que o programa cria ao rodar
+_temp/
+logs/
+.audios_pasta_pendencia/
