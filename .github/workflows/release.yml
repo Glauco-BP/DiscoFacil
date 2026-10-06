@@ -1,14 +1,11 @@
 # Gera o DiscoFacil.exe num Windows do GitHub e publica em "Releases".
-# Dispara sozinho quando uma versão é marcada (git tag v12.19 && git push --tags) ou criada
-# na página Releases do GitHub; ou à mão, na aba Actions ("Run workflow").
+# Dispara sozinho quando uma versão é publicada na página Releases do GitHub.
 name: Gerar o .exe e publicar a versão
 
 on:
-  push:
-    tags: ['v*']
   release:
-    types: [published]        # versão criada pela página do GitHub (Releases → Draft a new release)
-  workflow_dispatch:
+    types: [published]        # versão criada na página do GitHub (Releases → Draft a new release)
+  workflow_dispatch:          # ou à mão, na aba Actions (o zip fica na execução, sem publicar)
 
 permissions:
   contents: write
@@ -49,8 +46,8 @@ jobs:
           Copy-Item dist/DiscoFacil.exe pacote/
           Copy-Item Tutorial_DiscoFacil_*.pdf pacote/ -ErrorAction SilentlyContinue
           Copy-Item LICENSE, TERCEIROS.md, README.md pacote/
-          Compress-Archive -Path pacote/* -DestinationPath "DiscoFacil_$versao.zip" -Force
-          "ZIP=DiscoFacil_$versao.zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Compress-Archive -Path pacote/* -DestinationPath "DiscoFacil_${versao}_Windows_64bits.zip" -Force
+          "ZIP=DiscoFacil_${versao}_Windows_64bits.zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Guardar o zip (aparece na execução, em Actions)
         uses: actions/upload-artifact@v4
@@ -59,7 +56,7 @@ jobs:
           path: ${{ env.ZIP }}
 
       - name: Publicar em Releases
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.ZIP }}

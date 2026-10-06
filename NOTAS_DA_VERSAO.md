@@ -1,6 +1,6 @@
 ## DiscoFácil 12.18
 
-Baixe o `DiscoFacil_12.18.zip` abaixo, descompacte e abra o `DiscoFacil.exe`. O tutorial em PDF vem junto.
+Baixe o **`DiscoFacil_12.18_Windows_64bits.zip`** abaixo (em Assets; os "Source code" são só o código), descompacte e abra o `DiscoFacil.exe`. O tutorial em PDF vem junto. Só para Windows 64 bits.
 
 **Novidades da tela ✂ Conferir cortes**
 - Você tem a última palavra: o disco sai com os cortes e os nomes que você deixou, mesmo com menos faixas que o Discogs. Os nomes acompanham os cortes ("A / B" ao juntar, "A (2)" ao separar).

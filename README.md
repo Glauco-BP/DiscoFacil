@@ -8,7 +8,7 @@ O programa descobre qual disco é pelo [Discogs](https://www.discogs.com), acha 
 
 ## Baixar e usar
 
-1. Vá em **[Releases](../../releases)** e baixe o `DiscoFacil_<versão>.zip` mais recente.
+1. Vá em **[Releases](../../releases)** e, em **Assets**, baixe o **`DiscoFacil_<versão>_Windows_64bits.zip`** (uns 170 MB). Os dois "Source code" que o GitHub põe embaixo são só o código, sem o programa.
 2. Descompacte numa pasta e abra o **`DiscoFacil.exe`**. Não precisa instalar Python nem FFmpeg.
 3. Na primeira vez, abra **Configurações** e:
    - escolha a pasta onde os discos serão gravados;
@@ -51,7 +51,7 @@ Precisa do `ffmpeg` e do `ffprobe` no PATH (o .exe já vem com eles).
 - **Como funciona por dentro:** [ARQUITETURA.md](ARQUITETURA.md) (o caminho de um disco, os módulos e onde mexer).
 - **O que mudou em cada versão:** [MUDANCAS.md](MUDANCAS.md). **Planos:** [PLANO.md](PLANO.md).
 - **Testes:** `python testes/rodar_todos.py` (precisa de `ffmpeg`; no Linux, de `xvfb-run` para as telas). Nenhum teste usa a internet. Ver [testes/LEIA.md](testes/LEIA.md).
-- **Gerar o .exe:** `build_exe.bat` no Windows, ou automático aqui no GitHub: ao marcar uma versão (`git tag v12.19` + `git push --tags`), o GitHub gera o .exe e publica em Releases ([.github/workflows/release.yml](.github/workflows/release.yml)).
+- **Gerar o .exe:** `build_exe.bat` no Windows, ou automático aqui no GitHub: ao publicar uma versão em Releases (*Draft a new release*, tag `v12.19`), o GitHub gera o .exe e o anexa à versão ([.github/workflows/release.yml](.github/workflows/release.yml)).
 
 ## Licença
 
