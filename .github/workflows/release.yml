@@ -1,11 +1,13 @@
 # Gera o DiscoFacil.exe num Windows do GitHub e publica em "Releases".
-# Dispara sozinho quando uma versão é marcada (git tag v12.19 && git push --tags),
-# ou à mão, na aba Actions ("Run workflow").
+# Dispara sozinho quando uma versão é marcada (git tag v12.19 && git push --tags) ou criada
+# na página Releases do GitHub; ou à mão, na aba Actions ("Run workflow").
 name: Gerar o .exe e publicar a versão
 
 on:
   push:
     tags: ['v*']
+  release:
+    types: [published]        # versão criada pela página do GitHub (Releases → Draft a new release)
   workflow_dispatch:
 
 permissions:
