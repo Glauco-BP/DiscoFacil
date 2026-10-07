@@ -10,5 +10,5 @@ APP_VERSION = "12.18"
 APP_NAME = "DiscoFácil"
 APP_TITULO = f"{APP_NAME} {APP_VERSION}"
 # Página do projeto: vai na identificação do programa pro Discogs e o MusicBrainz (eles pedem um contato)
-APP_URL = "https://github.com/glaucoaiexcorrea-glitch/DiscoFacil"
+APP_URL = "https://github.com/Glauco-BP/DiscoFacil"
 APP_USER_AGENT = f"DiscoFacil/{APP_VERSION} ( {APP_URL} )"
