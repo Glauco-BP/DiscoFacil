@@ -1559,3 +1559,58 @@ Testado em `testes/teste_editor.py` (agora 107 verificações), com:
 - as guias e o roxo na tela, a lista de nomes, o "Colar nomes" e o arquivo de correções.
 
 O som de verdade e o roxo em discos reais só dá para conferir no Windows. Todos os testes passam, e os cortes dos discos de conferência continuam idênticos aos da 12.8. O tutorial (seções 1 e 8) ganhou as guias, os nomes, o quadro do disco sem Discogs e o arquivo de correções.
+
+## VERSÃO 12.19
+
+Primeira rodada do refinamento com o arquivo de correções do editor: 43 discos editados em 05 e 06/10/2026. A análise com script mostrou que, quando o programa corta, corta no lugar certo: 93% dos cortes em pausa ficaram onde estavam, e só 5 de 398 cortes foram movidos. O problema era o número de faixas, e não a posição dos cortes.
+
+### EI. "Falta 1 faixa": a pausa do fim do vídeo ocupava a vaga de uma faixa
+
+Em discos sem durações no Discogs mas com o nº de faixas certo, o corte pelos silêncios completa o que falta com as quedas de volume, até chegar a esse nº. A pausa do fim do vídeo (meio segundo antes do fim) era contada como uma das trocas. Só depois era descartada ("deixaria só 0,5 s no fim"), e o disco ficava com uma faixa a menos, sem os nomes, em "Precisam de você".
+
+Agora o corte colado no fim sai **antes** de completar. Aconteceu em Os Cobras, Juarez Araújo, Os Seis em Ponto, Neco e Ed Lincoln. Em Os Cobras, a troca que faltava (21:05) era exatamente a que você marcou no editor.
+
+Atenção: no Ed Lincoln o vídeo tem mesmo uma faixa a menos que o Discogs (você deixou 11). Com a correção, o programa vai procurar a 12ª numa queda de volume. Para conferir isso com o disco de verdade, a 12.19 guarda as medidas dos discos editados (ver EL).
+
+Teste novo em `testes/teste_refino.py`: um disco sintético como o Os Cobras (11 faixas, 2 trocas com pausa curta e o vídeo terminando em silêncio). Antes saíam 10 faixas com "Track N"; agora saem 11, com os nomes, cada corte a menos de 3 s da troca. Os cortes dos 10 discos de conferência continuam idênticos.
+
+### EJ. Nome de pasta com uma lista colada (o disco se perdia)
+
+No "Antônio Adolfo - Nó Em Pingo Dágua", a lista de faixas de outro disco foi parar no campo do artista do quadro amarelo do editor. O nome da pasta ficou com mais de 400 letras, o Windows recusou (`WinError 123`) e o disco foi rejeitado de vez.
+
+- O editor não salva com várias linhas (ou mais de 150 letras) no artista ou no álbum, e explica o motivo.
+- O nome da pasta corta também o artista (100 letras), e não só o álbum, e nunca termina em ponto ou espaço.
+
+### EK. Nomes automáticos no editor, para disco não confirmado
+
+Em 25 das 43 edições os nomes ficaram "Track N" e você escolheu um por um no duplo clique. Agora, quando o disco não está confirmado no Discogs e uma lista do próprio vídeo (capítulos, descrição, comentário) tem o mesmo nº de músicas que os pedaços, os nomes entram sozinhos:
+- o palpite do Discogs **não** entra sozinho, só no duplo clique. Conferindo a tela, apareceu o risco: um disco de 10 músicas com 3 trocas sem pausa abre com 7 pedaços, e um palpite errado de 7 faixas "batia" (nomes errados com cara de certos);
+- isso vale na abertura e também depois, quando você marca o corte que faltava;
+- daí em diante os nomes acompanham os cortes, como os do Discogs;
+- a tela avisa "⚠ Nomes da descrição do vídeo: confira".
+
+O Discogs confirmado continua tendo prioridade: com ele, as outras listas só aparecem no duplo clique.
+
+O arquivo de correções também mudou:
+- os "nomes trocados" agora comparam com o que aparecia na hora de salvar, e não na abertura (um nome que entrou sozinho não conta mais como trocado por você);
+- linhas novas: `fonte_dos_nomes`, `nomes_automaticos_mantidos` e `nomes_da_abertura`.
+
+### EL. Medidas dos discos editados, para a análise
+
+Cada vez que você salva no editor, o programa guarda o "desenho do volume" do disco em `logs\medidas_do_editor\` (uns 100 KB por disco):
+- o volume a cada 0,05 s;
+- os silêncios achados;
+- as mudanças no som;
+- os cortes sugeridos e os finais.
+
+Não dá para ouvir nem refazer a música com isso; serve para testar ajustes do corte com os discos que você corrigiu, sem mandar os áudios. A linha do arquivo de correções diz qual é o arquivo (`medidas`).
+
+O "✂ Editar disco" de um disco já cortado, salvo **sem mudança**, também guarda as medidas (com os cortes de agora como gabarito). Ele não regrava a pasta e não conta no resumo "📊 Editor". As medidas obedecem à mesma opção das Configurações que o arquivo de correções.
+
+### EM. Pendência que falha de novo continua em "Precisam de você"
+
+Quando uma pendência voltava para a fila (✏️ Corrigir busca, Enfileirar, cortes do editor) e a nova tentativa não dava certo, ela saía da lista "rejeitada de vez", junto com o áudio guardado para o ✂ Editar. O log ainda dizia "fica em Precisam de você". Aconteceu duas vezes com o "Hermeto Pascoal - Hermeto" (busca "Hermeto Pascoal – 1970").
+
+Agora ela continua na lista, com o motivo: "Tentou de novo em 05/10 23:22 e não deu: …". Ficam também o áudio e o que você corrigiu (a busca, os cortes). Só sai quando dá certo ou quando você descarta.
+
+Testado em `testes/teste_refino.py` (novo) e `testes/teste_editor.py`.

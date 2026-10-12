@@ -22,6 +22,7 @@ from versao import APP_VERSION
 TAMANHO_MINIMO_AUDIO = 100_000
 KINDS_CONFIRMADOS = ('falha_corte', 'falha_download')   # o disco é este; o que falhou foi o corte/download
 PALPITE_MIN_PCT = 30                 # palpite do Discogs abaixo disso nem aparece como nome sugerido
+CAMPO_DISCO_MAX = 150                # artista/álbum digitado no editor maior que isso é texto colado por engano
 
 
 class EditorMixin:
@@ -227,9 +228,13 @@ class EditorMixin:
             if confirmado:
                 ed.adicionar_candidatos('Discogs', [t.get('title') for t in dados.get('tracks') or []])
             elif dados.get('tracks') and (item.get('confidence_pct') or 0) >= PALPITE_MIN_PCT:
+                # só no duplo clique: o palpite nunca entra sozinho (EC.FONTES_PREFERIDAS)
                 ed.adicionar_candidatos('palpite do Discogs', [t.get('title') for t in dados['tracks']])
             for fonte, nomes, _ in fontes:
                 ed.adicionar_candidatos(fonte, nomes)
+            # 12.19: sem Discogs confirmado, uma lista do próprio vídeo com o mesmo nº de músicas já dá os
+            # nomes (marcados "confira" na tela) - antes ficava "Track N" e você escolhia um por um
+            ed.rotular()
             return ed
 
         def ao_salvar(ed):
@@ -238,6 +243,11 @@ class EditorMixin:
                 d = janela_box['janela'].dados_do_disco() if janela_box.get('janela') else disco
                 if not d['artista'] or not d['album']:
                     raise RuntimeError("escreva o artista e o álbum (no quadro amarelo, em cima da tabela)")
+                for campo, valor in (('o artista', d['artista']), ('o álbum', d['album'])):
+                    # 12.19: uma lista de faixas colada no campo do artista virou o nome da pasta e o disco se perdeu
+                    if '\n' in valor or '\r' in valor or len(valor) > CAMPO_DISCO_MAX:
+                        raise RuntimeError(f"{campo} parece uma lista colada (várias linhas ou texto longo demais): "
+                                           f"escreva só o nome, no quadro amarelo em cima da tabela")
                 extra = {'editor_sem_discogs': True, 'title_artist': d['artista'], 'title_album': d['album'],
                          'year': d['ano']}
             novo = self.pending_queue.informar_tempos(item['id'], ed.texto_tempos(), extra=extra)
@@ -266,9 +276,15 @@ class EditorMixin:
             base = self.config.get_output_directory()
             if not base:
                 return
-            EC.gravar_correcao(base, EC.registro_de_correcoes(ed, dict(extra, versao=APP_VERSION)))
+            reg = EC.registro_de_correcoes(ed, dict(extra, versao=APP_VERSION))
+            # 12.19: o "desenho do volume" e os cortes, pra testar ajustes com os discos que você corrigiu
+            chave = EC.id_do_video(extra.get('url')) if extra.get('url') else extra.get('pasta')
+            medidas = EC.guardar_medidas_da_edicao(base, ed, chave or 'disco')
+            if medidas:
+                reg['medidas'] = medidas
+            EC.gravar_correcao(base, reg)
             resumo = EC.resumo_correcoes(base)
-            if resumo:
+            if resumo and not extra.get('sem_mudanca'):
                 self.log(f"   📊 Editor: {resumo}")
         except Exception:
             pass
@@ -319,6 +335,8 @@ class EditorMixin:
 
         def ao_salvar(ed):
             if not ed.mudou:
+                # 12.19: mesmo sem mudança, os cortes de um disco já conferido servem de gabarito pra análise
+                self._anotar_correcoes(ed, {'pasta': pasta.name, 'sem_mudanca': True})
                 messagebox.showinfo("Editar disco", "Nada mudou: o disco ficou como estava.", parent=self.root)
                 soltar_juntado()
                 return None                   # fecha sem regravar (regravar à toa perderia qualidade)

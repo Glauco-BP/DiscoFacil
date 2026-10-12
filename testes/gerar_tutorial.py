@@ -618,6 +618,9 @@ def montar_pdf(fotos, destino, versao):
     h.append(L('<b>✂ Editar</b> (seção 8), <b>Informar tempos</b> e <b>Corrigir busca</b> (abaixo) valem pra um '
                'disco selecionado.'))
     h.append(L('Uma ampulheta na frente do título = já está na fila.'))
+    h.append(L('Se a nova tentativa (Enfileirar, Corrigir busca, ✂ Editar) não der certo, o disco <b>volta pra '
+               'lista</b>, com o motivo ("Tentou de novo em ... e não deu: ..."), o áudio guardado e o que você '
+               'corrigiu.'))
     h.append(S('Informar tempos'))
     h.append(P('Pra quando você faz questão de um disco que o programa não conseguiu separar sozinho. Cole a '
                'lista das músicas com o tempo de cada uma, uma por linha: o início ("0:00 Nome", "3:12 Nome"...) '
@@ -676,7 +679,10 @@ def montar_pdf(fotos, destino, versao):
     h.append(P('Em "Confiança baixa", "Não achado" ou "Talvez outro disco", o palpite do Discogs pode ser outro '
                'disco, então ele não entra. O artista, o álbum e o ano vêm do título do vídeo, num quadro '
                'amarelo pra você conferir (o título tinha "Sotfly"; corrija pra "Softly"). Os cortes e os nomes '
-               'vêm dos capítulos, da descrição ou de um comentário do vídeo, se houver.'))
+               'vêm dos capítulos, da descrição ou de um comentário do vídeo, se houver. Quando uma lista do '
+               'vídeo tem o mesmo número de músicas que os pedaços (na abertura ou depois que você marca os '
+               'cortes que faltavam), os nomes entram sozinhos, com o aviso amarelo <b>"Nomes da ...: '
+               'confira"</b>. O palpite do Discogs fica só no duplo clique.'))
     h.append(img('editor_sem_discogs', maxh=9 * cm))
     salvar_ = [S('Salvar')]
     salvar_.append(L('<b>Em "Precisam de você"</b>: o disco entra na fila e é cortado exatamente onde você marcou, '
@@ -685,8 +691,10 @@ def montar_pdf(fotos, destino, versao):
                'cortes novos, com as mesmas tags e a capa. Os arquivos de antes ficam em '
                '<b>.audios_pasta_pendencia\\antes_da_edicao</b>, na pasta dos discos.'))
     salvar_.append(L('<b>As suas correções</b> (o que o programa sugeriu e o que você deixou) ficam anotadas em '
-               '<b>logs\\correcoes_do_editor.txt</b>. De tempos em tempos, mande esse arquivo na conversa de '
-               'suporte: é com ele que os cortes automáticos são ajustados. Dá pra desligar nas Configurações.'))
+               '<b>logs\\correcoes_do_editor.txt</b>, e o "desenho do volume" de cada disco editado (uns 100 KB, '
+               'não dá pra ouvir) em <b>logs\\medidas_do_editor</b>. De tempos em tempos, mande o arquivo e essa '
+               'pasta zipada na conversa de suporte: é com eles que os cortes automáticos são ajustados, sem '
+               'precisar dos áudios. Dá pra desligar nas Configurações.'))
     salvar_.append(D('o som sai pelo alto-falante do computador. Se ele não tocar, a tela diz por quê e continua '
                      'funcionando para ver e marcar.'))
     h.append(KeepTogether(salvar_))

@@ -680,6 +680,17 @@ linhas_corr = EC.caminho_correcoes(base_app).read_text(encoding='utf-8').splitli
     if EC.caminho_correcoes(base_app).exists() else []
 t('o salvar anotou as correções em logs/correcoes_do_editor.txt',
   linhas_corr and _json.loads(linhas_corr[-1]).get('url') == url2 and _json.loads(linhas_corr[-1]).get('confirmado'))
+# 12.19: o "desenho do volume" do disco editado, pra testar ajustes do corte com os discos corrigidos
+nome_med = _json.loads(linhas_corr[-1]).get('medidas') if linhas_corr else None
+arq_med = EC.caminho_medidas_editor(base_app) / (nome_med or '-')
+ok_med = False
+if arq_med.exists():
+    with np.load(str(arq_med)) as z_:
+        ok_med = (len(z_['volume_db']) > 1000 and float(z_['passo_s']) == EC.ENVELOPE_PASSO_SEC
+                  and len(_json.loads(str(z_['cortes_finais']))) == 9 and EC.id_do_video(url2) in nome_med
+                  and 'ffmpeg' in str(z_['gaps']) and float(z_['duracao_s']) > 100)
+t(f'...e guardou as medidas em logs/medidas_do_editor ({nome_med}, '
+  f'{arq_med.stat().st_size // 1024 if arq_med.exists() else 0} KB)', ok_med and arq_med.stat().st_size < 400_000)
 
 # confiança baixa (Ruth Brown - "Sotfly" com o palpite "Peaks Iration - Zen Garden"): o palpite não entra
 url3 = 'https://www.youtube.com/watch?v=4xfpPje_Qww'
@@ -714,6 +725,14 @@ _mb_err = __import__('tkinter').messagebox.showerror
 __import__('tkinter').messagebox.showerror = lambda *a, **k: erros_salvar.append(a)
 je3.salvar(); esperar2(0.3)
 t('...sem o nome do álbum não salva (pede pra escrever)', erros_salvar and je3.win.winfo_exists())
+# 12.19: uma lista de faixas colada no campo do artista virou o nome da pasta (WinError 123) e o disco se perdeu
+je3.v_album.set('Softly'); erros_salvar.clear()
+je3.v_artista.set('01 - Eu sei que vou te amar (Tom Jobim/Vinícius de Moraes)\n02 - Paca tatu, cotia não\n03 - Cor de Rosa')
+je3.salvar(); esperar2(0.3)
+t(f'...lista colada no campo do artista: não salva e explica ({str(erros_salvar[-1:])[:70]})',
+  erros_salvar and 'lista colada' in str(erros_salvar[-1]) and je3.win.winfo_exists()
+  and not next(i for i in pq.items if i['url'] == url3).get('tempos_usuario'))
+je3.v_artista.set('Ruth Brown')
 je3.v_album.set('Softly'); je3.v_ano.set('1957')
 je3.salvar(); esperar2(0.4)
 __import__('tkinter').messagebox.showerror = _mb_err
@@ -751,6 +770,8 @@ je4 = app._janela_editor
 t(f'"talvez outro disco": artista, álbum e ano vêm do título do vídeo ({je4.dados_do_disco() if je4 else None})',
   je4 is not None and je4.dados_do_disco() == {'artista': 'Ruth Brown', 'album': 'Softly', 'ano': '1957'}
   and je4.ed.oficiais == [])
+t('...e os nomes do palpite (talvez outro disco) não entram sozinhos (12.19)',
+  je4.ed.fonte_dos_nomes() is None and not any(n in RAY for n in je4.ed.nomes()))
 je4.fechar(perguntar=False)
 
 # ✂ Editar disco (tela principal): pasta já cortada -> tela -> salvar -> regrava
@@ -792,5 +813,13 @@ app._janela_editor.salvar(); esperar2(0.5)
 t('salvar sem mudar nada: avisa "Nada mudou" e não regrava a pasta',
   avisos_mb and 'Nada mudou' in avisos_mb[0][1] and {p.name: p.stat().st_mtime for p in pasta.glob('*.mp3')} == mtimes
   and not list(EC.pasta_audios(base_app).glob('_editando_*.mp3')))
+# 12.19: mesmo sem mudança, os cortes do disco já conferido viram gabarito (medidas + linha "sem_mudanca")
+ult = _json.loads(EC.caminho_correcoes(base_app).read_text(encoding='utf-8').splitlines()[-1])
+med = EC.caminho_medidas_editor(base_app) / (ult.get('medidas') or '-')
+with np.load(str(med)) as z_:
+    cortes_med = _json.loads(str(z_['cortes_finais']))
+t(f'...mas guarda as medidas do disco com os cortes de agora ({ult.get("medidas")}) sem contar no resumo',
+  ult.get('sem_mudanca') and med.exists() and len(cortes_med) == 9
+  and 'sem_mudanca' not in str(EC.resumo_correcoes(base_app)))
 root.destroy()
 fim()

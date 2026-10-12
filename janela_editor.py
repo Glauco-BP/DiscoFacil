@@ -433,6 +433,12 @@ class JanelaEditor(Cores):
                         f"Faixas {nums}{' ...' if len(est) > 4 else ''}: sem silêncio perto. Use \"◀ marca / "
                         f"marca ▶\" e \"🎧 Ouvir a emenda\"; se estiver certo, não precisa fazer nada.")
             partes.append(f"{len(est)} estimado{'s' if len(est) > 1 else ''} pra conferir")
+        fonte = self.ed.fonte_dos_nomes()
+        if fonte and any(n == a for n, a in zip(self.ed.nomes(), self.ed.nomes_automaticos())):
+            self._caixa("#FFFBEB", "#FDE68A", self.COLOR_WARNING, f"⚠  Nomes da {fonte}: confira",
+                        f"O disco não foi confirmado no Discogs; os nomes vieram da {fonte} porque o nº de músicas "
+                        f"bate com o de pedaços. Confira antes de salvar (duplo clique no nome pra trocar).")
+            partes.append("nomes a conferir")
         if not partes:
             self._caixa("#F0FDF4", "#BBF7D0", self.COLOR_SUCCESS, "✓  Tudo confirmado",
                         "Todos os cortes estão em silêncios ou foram marcados por você.")

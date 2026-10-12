@@ -6,7 +6,7 @@ Este arquivo é lido automaticamente pelo Claude quando a conversa é ligada a e
 
 - **DiscoFácil**: transforma vídeos de disco inteiro do YouTube em faixas MP3 com tags (nome, número, artista, álbum, ano, capa). Python 3.12 + Tkinter, **só Windows 64 bits** (o .exe é gerado pelo GitHub Actions).
 - Repositório: **https://github.com/Glauco-BP/DiscoFacil** (o usuário antigo `glaucoaiexcorrea-glitch` foi trocado por `Glauco-BP` em 06/10/2026; os links antigos redirecionam). O link fica em `versao.py` (`APP_URL`), e o programa o manda pro Discogs e o MusicBrainz como identificação.
-- Versão atual: ver `versao.py` (12.18 quando este arquivo foi escrito). Por dentro: `ARQUITETURA.md`. Histórico: `MUDANCAS.md`. Planos: `PLANO.md`. Testes: `testes/LEIA.md`.
+- Versão atual: ver `versao.py` (12.19 quando este arquivo foi atualizado). Por dentro: `ARQUITETURA.md`. Histórico: `MUDANCAS.md`. Planos: `PLANO.md`. Testes: `testes/LEIA.md`.
 
 ## Como o Glauco quer trabalhar
 
@@ -33,7 +33,7 @@ Este arquivo é lido automaticamente pelo Claude quando a conversa é ligada a e
 ## Testes
 
 - `python testes/rodar_todos.py`: todos, cerca de 15 min. Rode em segundo plano (`nohup ... &`) e espere o fim, porque a saída só aparece no final. Precisa de `ffmpeg` e, no Linux, de `xvfb-run` para as telas.
-- `python testes/conferir_cortes.py`: cerca de 1 min. Corta 10 discos de teste e compara cada corte, na posição exata, com `testes/referencia_cortes.json` (os cortes da 12.8, iguais até a 12.18). **Rode depois de qualquer ajuste nos cortes.** Se um disco mudou de propósito, grave a referência nova com `--gravar` e explique no `MUDANCAS.md`.
+- `python testes/conferir_cortes.py`: cerca de 1 min. Corta 10 discos de teste e compara cada corte, na posição exata, com `testes/referencia_cortes.json` (os cortes da 12.8, iguais até a 12.19). **Rode depois de qualquer ajuste nos cortes.** Se um disco mudou de propósito, grave a referência nova com `--gravar` e explique no `MUDANCAS.md`.
 
 ## Publicar uma versão
 
@@ -50,11 +50,12 @@ Este arquivo é lido automaticamente pelo Claude quando a conversa é ligada a e
   - o disco, a origem (pendência ou disco já cortado) e se o Discogs estava confirmado;
   - cada corte sugerido, com o que aconteceu com ele: `mantido` (até 0,5 s), `movido` (com `diferenca_s`), `apagado` ou `novo`, e o tipo (`silencio` / `estimado` / `usuario`);
   - o que havia perto de cada corte: `pausa_perto_s` e `pausa_dura_s`, `som_perto_s` (a guia roxa), `discogs_perto_s` (a guia amarela);
-  - os nomes trocados.
+  - os nomes trocados (desde a 12.19, comparados com o que aparecia ao salvar), `fonte_dos_nomes` e `nomes_automaticos_mantidos`;
+  - desde a 12.19, `medidas`: o arquivo em `logs\medidas_do_editor\` com o "desenho do volume" do disco (volume em dB a cada 0,05 s, silêncios, mudanças no som, cortes sugeridos e finais). É com ele que se testa um ajuste do corte sem os áudios (que são grandes demais pra mandar). Disco já cortado aberto no "✂ Editar disco" e salvo sem mudança também guarda as medidas (linha com `sem_mudanca`, fora do resumo).
 
-  Ver `edicao_cortes.registro_de_correcoes`. O log de cada rodada mostra o resumo "📊 Editor: … X% dos cortes sugeridos ficaram onde estavam".
+  Ver `edicao_cortes.registro_de_correcoes` e `guardar_medidas_da_edicao`. O log de cada rodada mostra o resumo "📊 Editor: … X% dos cortes sugeridos ficaram onde estavam".
 - **Ciclo** (a cada ~2 semanas, ou depois de ~30 a 50 edições):
-  1. O Glauco manda o `correcoes_do_editor.txt` (e, se quiser, o log da rodada).
+  1. O Glauco manda o `correcoes_do_editor.txt` e a pasta `logs\medidas_do_editor` zipada (e, se quiser, o log da rodada).
   2. O Claude analisa **com números** (script, não estimativa):
      - % mantidos por tipo;
      - para que lado e quanto os `estimado` erram;

@@ -338,13 +338,15 @@ class FilaMixin:
                               f"{'a fila não tenta de novo' if estado == 'rejeitado' else 'não deu certo, volta pra fila'}"
                               f" | motivo: {getattr(self, '_ultimo_motivo', '') or 'ver as linhas acima'}"
                               f" | {item.get('titulo') or item.get('url', '')}")
-                    if estado == 'rejeitado':
+                    if estado == 'rejeitado' and item.get('tipo') == 'pendencia':
+                        # 12.19: a nova tentativa de uma pendência (Corrigir busca, Enfileirar, cortes do
+                        # editor) não deu certo: ela VOLTA pra "Precisam de você", com o motivo, em vez de
+                        # sumir da lista (e levar junto o áudio guardado pro ✂ Editar)
+                        self._voltar_pras_pendencias(item.get('url'), getattr(self, '_ultimo_motivo', '') or
+                                                     (getattr(self, '_notas_corte', None) or {}).get('motivo', ''))
+                    elif estado == 'rejeitado':
                         self.log(f"   🚫 Não será repetido. Fica no histórico da fila; "
                                  f"use 🔍 Buscar outra versão pra procurar outro upload.")
-                        # só sai das pendências quem veio delas (um álbum de canal
-                        # que falhou agora acabou de entrar lá)
-                        if item.get('tipo') == 'pendencia':
-                            self._tirar_das_pendencias(item.get('url'), 'rejeitado de vez')
 
             if not self.parar_trabalhador:
                 c = self.fila.contagens()
@@ -414,6 +416,7 @@ class FilaMixin:
         Devolve se deu certo.
         """
         self._fila_item_ok = True       # vira False se o item for pra "Precisam de você"
+        self._notas_corte = {}          # o motivo de uma falha é sempre o DESTE item
         if item.get('tipo') == 'pendencia':
             guardado = item.get('pendencia_item')
             if not guardado:
@@ -426,6 +429,23 @@ class FilaMixin:
         else:
             self.process_single_video(item['url'])
         return bool(getattr(self, '_fila_item_ok', False))
+
+    def _voltar_pras_pendencias(self, url, motivo=''):
+        """A pendência que falhou de novo continua em "Precisam de você", com o motivo."""
+        try:
+            fila_p = getattr(self, 'pending_queue', None)
+            item = fila_p.anotar_falha(url, (motivo or '')[:160]) if fila_p and url else None
+            if item:
+                self.log(f"   ↩️  Continua em Precisam de você (a nova tentativa não deu certo): "
+                         f"{(item.get('video_title') or url)[:50]}")
+                try:
+                    self.root.after(0, self._refresh_main_buttons_state)
+                except Exception:
+                    pass
+                return True
+        except Exception as e:
+            self.log(f"   ⚠️  Não consegui atualizar a pendência: {str(e)[:80]}")
+        return False
 
     def _tirar_das_pendencias(self, url, motivo=''):
         """Remove da lista de pendências o item com esta URL, se houver."""
