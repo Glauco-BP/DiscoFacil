@@ -1626,11 +1626,11 @@ O "✂ Editar disco" de um disco já cortado, salvo **sem mudança**, também gu
 
 A janela abria com 760 de altura onde o Windows quisesse, e numa tela de notebook os botões de baixo ("Salvar", "Cancelar") ficavam fora da tela. Agora ela abre no alto da tela, centralizada, e nunca fica mais alta que a tela (menos a barra de tarefas). Numa tela baixa quem encolhe é o desenho da onda, e os botões continuam visíveis.
 
-### EO. Geração do .exe sem o aviso do Node.js 20
+### EN. Geração do .exe sem o aviso do Node.js 20
 
 O GitHub avisava que as peças do `release.yml` usavam o Node.js 20, que está sendo desligado. Elas foram trocadas pelas versões que usam o Node.js 24: `actions/checkout@v6`, `actions/setup-python@v6`, `actions/upload-artifact@v6` e `softprops/action-gh-release@v3` (a que anexa o zip à versão). O programa e o zip não mudam.
 
-### EN. Pendência que falha de novo continua em "Precisam de você"
+### EO. Pendência que falha de novo continua em "Precisam de você"
 
 Quando uma pendência voltava para a fila (✏️ Corrigir busca, Enfileirar, cortes do editor) e a nova tentativa não dava certo, ela saía da lista "rejeitada de vez", junto com o áudio guardado para o ✂ Editar. O log ainda dizia "fica em Precisam de você". Aconteceu duas vezes com o "Hermeto Pascoal - Hermeto" (busca "Hermeto Pascoal – 1970").
 
