@@ -67,7 +67,7 @@ Este arquivo é lido automaticamente pelo Claude quando a conversa é ligada a e
 - **O programa NÃO aprende sozinho**, e isso foi decidido: os ajustes passam por análise, testes e versão.
 - **Lembretes:**
   - Combinado com o Glauco: lembrar de pedir o arquivo a cada ~2 semanas, **nesta** conversa nova (agendar com `send_later`).
-  - O lembrete antigo, marcado na conversa anterior para 19/10/2026 às 19h, tem o id `trig_01HzhsxHYvzuZBvQR2rBoC7B`: apague-o (`delete_trigger`) e crie o novo aqui.
+  - O lembrete antigo (`trig_01HzhsxHYvzuZBvQR2rBoC7B`, da conversa anterior) foi apagado em 12/10/2026. O atual é `trig_018dnWzGDmA4YJtJhBra37mM`, para 19/10/2026 às 19h (Brasília), nesta conversa. Cada lembrete é de uma vez só: quando chegar, pedir o arquivo e marcar o próximo para 14 dias depois, às 19h.
 - **Fim do projeto de refinamento:** quando o resultado estiver bom, combinar com o Glauco, desligar a gravação (`settings.gravar_correcoes_editor` passa a vir desligado) e parar os lembretes.
 
 ## Pendências conhecidas (decididas ou de baixa prioridade)
