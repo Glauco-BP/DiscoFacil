@@ -47,3 +47,5 @@ Variáveis úteis:
 
 `referencia_e2e.json`: cortes do ponta a ponta gravados na 12.1. Se uma mudança no corte
 for intencional, regrave com `python testes/e2e.py --gravar` e explique no MUDANCAS.md.
+
+**Conferência dos cortes** (fora do rodar_todos, ~1 min): `python testes/conferir_cortes.py` corta 10 discos de teste e compara cada corte, na posição exata, com `testes/referencia_cortes.json` (cortes da 12.8). Rode depois de qualquer ajuste nos cortes; `--gravar ARQUIVO` grava uma referência nova.
