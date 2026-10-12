@@ -1,13 +1,15 @@
 """
 12.19 - Refinamento com as correções do editor (casos reais das 43 edições de 05-06/10/2026):
   - "falta 1 faixa": a pausa do fim do vídeo ocupava a vaga de uma fronteira na hora de
-    completar com as quedas de volume (Os Cobras, Juarez Araújo, Os Seis em Ponto, Ed Lincoln);
+    completar com as quedas de volume (Os Cobras, Juarez Araújo, Os Seis em Ponto); e a queda só
+    completa um corte dentro de um pedaço comprido demais (Ed Lincoln: pausa no meio de uma música);
   - nome da pasta: uma lista de faixas colada no campo do artista virou um nome de pasta de 400
     letras (WinError 123) e o disco do Antônio Adolfo se perdeu;
   - nomes no ✂ Editar: disco sem Discogs confirmado ficava "Track N" mesmo quando uma lista sugerida
     do próprio vídeo (capítulos, descrição, comentário) tinha o mesmo nº de músicas que os pedaços;
   - pendência que falha de novo (Corrigir busca que não acha, Enfileirar, cortes do editor) sumia
-    de "Precisam de você" junto com o áudio guardado (Hermeto Pascoal - Hermeto, duas vezes).
+    de "Precisam de você" junto com o áudio guardado (Hermeto Pascoal - Hermeto, duas vezes);
+  - a tela do editor abre no alto e cabe numa tela baixa (os botões de baixo ficavam pra fora).
 """
 import os, sys, subprocess, time
 if not os.environ.get('DISPLAY') and not os.environ.get('DF_SEM_XVFB'):
@@ -21,6 +23,7 @@ from sint import *
 import main
 import saida
 import edicao_cortes as EC
+from janela_editor import JANELA_FOLGA_VERTICAL as EC_JANELA_FOLGA
 
 quieto = lambda *a, **k: None
 
@@ -52,6 +55,24 @@ t(f"Os Cobras: {len(cuts or [])} faixas = 11 do Discogs (a pausa do fim não ocu
 t("...com os nomes do Discogs pela ordem (não 'Track N')", cuts and [c['title'] for c in cuts] == NOMES_C)
 t(f"...e cada corte a menos de 3 s da troca de verdade",
   len(achados) == 10 and all(abs(a - e) < 3.0 for a, e in zip(achados, esperados)))
+
+# Ed Lincoln (medidas reais de 12/10): o vídeo tem 11 músicas e o Discogs 12. A queda de volume mais
+# funda que sobrava era uma pausa de 0,4 s no meio da 1ª música (1:30) - completar com ela dava 12
+# faixas com os nomes trocados dali pra frente. Só vale queda dentro de pedaço comprido demais.
+DUR_E = [170, 133, 232, 160, 141, 104, 143, 106, 143, 141, 134]
+partes = [musica(90), silencio(0.4), musica(80)]
+for d in DUR_E[1:]:
+    partes += [silencio(3.0), musica(d)]
+partes.append(silencio(1.6))
+arq_e = salvar(np.concatenate(partes), 'refino_edlincoln.wav')
+sc = main.SmartCutter({'tracks': [{'title': f'Faixa {k}', 'duration': 0} for k in range(1, 13)]}, {}, arq_e,
+                      log_func=quieto)
+ac = main.AlbumCutter('Ed Lincoln', 'A Volta', arq_e, {'tracks': []}, tmp('refino', 'e'), log_func=quieto)
+sc.all_gaps = ac.detect_gaps()
+cuts = sc.cut_by_cross_validation()
+t(f"Ed Lincoln: {len(cuts or [])} pedaços pra 12 do Discogs - a pausa no meio da 1ª música não vira corte "
+  f"(fica 'Track N', em Precisam de você)",
+  cuts and len(cuts) == 11 and cuts[0]['title'] != 'Faixa 1' and all(c['end'] is None or c['end'] > 160 for c in cuts[:1]))
 
 # ------------------------------------------------------------------ nome da pasta (WinError 123)
 LISTA = ('01 - Eu sei que vou te amar (Tom Jobim/Vinícius de Moraes)\n02 - Paca tatu, cotia não (Nico Assumpção)\n'
@@ -160,6 +181,24 @@ app._enfileirar_pendencias([volta])
 app.trabalhador_ativo = True
 app._trabalhador_da_fila()
 t('enfileirada de novo e dessa vez deu certo: sai da lista', not any(i['url'] == url_h for i in pq.items))
+# ------------------------------------------------------------------ tela do editor numa tela baixa
+# 12.19: numa tela de notebook (768 de altura, com a barra de tarefas) o "Salvar" ficava pra fora
+import tkinter as tk
+from janela_editor import JanelaEditor
+from tocador import TocadorFalso
+_alt_real = tk.Misc.winfo_screenheight
+tk.Misc.winfo_screenheight = lambda self: 720
+ed_t = EC.Edicao(arq_e, [], titulo='Ed Lincoln - A Volta').carregar()
+je_t = JanelaEditor(root, ed_t, lambda e: None, tocador=TocadorFalso())
+for _ in range(20):
+    root.update(); time.sleep(0.02)
+tk.Misc.winfo_screenheight = _alt_real
+fundo_salvar = je_t.b_salvar.winfo_rooty() + je_t.b_salvar.winfo_height() - je_t.win.winfo_rooty()
+t(f'tela de 720 de altura: o editor abre no alto ({je_t.win.winfo_y()}) com {je_t.win.winfo_height()} de altura '
+  f'e o "Salvar" dentro da janela ({fundo_salvar})',
+  je_t.win.winfo_height() <= 720 - EC_JANELA_FOLGA and je_t.win.winfo_y() <= 40
+  and 0 < fundo_salvar <= je_t.win.winfo_height())
+je_t.fechar(perguntar=False)
 root.destroy()
 
 fim()

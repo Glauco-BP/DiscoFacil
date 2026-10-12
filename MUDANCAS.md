@@ -1568,11 +1568,26 @@ Primeira rodada do refinamento com o arquivo de correções do editor: 43 discos
 
 Em discos sem durações no Discogs mas com o nº de faixas certo, o corte pelos silêncios completa o que falta com as quedas de volume, até chegar a esse nº. A pausa do fim do vídeo (meio segundo antes do fim) era contada como uma das trocas. Só depois era descartada ("deixaria só 0,5 s no fim"), e o disco ficava com uma faixa a menos, sem os nomes, em "Precisam de você".
 
-Agora o corte colado no fim sai **antes** de completar. Aconteceu em Os Cobras, Juarez Araújo, Os Seis em Ponto, Neco e Ed Lincoln. Em Os Cobras, a troca que faltava (21:05) era exatamente a que você marcou no editor.
+Agora o corte colado no fim sai **antes** de completar. Aconteceu em Os Cobras, Juarez Araújo, Os Seis em Ponto, Neco e Ed Lincoln.
 
-Atenção: no Ed Lincoln o vídeo tem mesmo uma faixa a menos que o Discogs (você deixou 11). Com a correção, o programa vai procurar a 12ª numa queda de volume. Para conferir isso com o disco de verdade, a 12.19 guarda as medidas dos discos editados (ver EL).
+**Conferido com as medidas reais** (os 10 discos que você abriu e salvou no ✂ Editar disco em 12/10, ver EL). Sozinha, essa correção era perigosa: Os Cobras e Ed Lincoln passavam a sair com um corte no meio de uma música e os nomes trocados dali pra frente. A queda de volume mais funda que sobrava era uma pausa curta dentro de uma música de tamanho normal (Os Cobras 9:49, Ed Lincoln 1:30); no Ed Lincoln, o vídeo tem mesmo uma faixa a menos que o Discogs. Por isso, a queda só completa um corte **dentro de um pedaço comprido demais para ser uma música só**: mais de 1,5× a duração média esperada (duração total ÷ nº de faixas, `QUEDA_REL_PEDACO_LONGO_FATOR` em `ajustes.py`).
 
-Teste novo em `testes/teste_refino.py`: um disco sintético como o Os Cobras (11 faixas, 2 trocas com pausa curta e o vídeo terminando em silêncio). Antes saíam 10 faixas com "Track N"; agora saem 11, com os nomes, cada corte a menos de 3 s da troca. Os cortes dos 10 discos de conferência continuam idênticos.
+Resultado com as medidas reais:
+
+| Disco | 12.18 | 12.19 |
+|---|---|---|
+| Juarez Araújo | 11 pedaços, "Track N", pendência | **12 faixas certas, com os nomes** |
+| Os Seis em Ponto | certo | certo |
+| Os Cobras | 10 pedaços, pendência | 10 pedaços, pendência (a troca de 21:05 não tem queda de volume que dê pra ver) |
+| Ed Lincoln | 11 pedaços, pendência | 11 pedaços, pendência (certo: o vídeo tem 11) |
+
+Os 6 discos sem pausa nenhuma continuam em "Precisam de você": sem durações e sem pausas, não há como cortar sozinho.
+
+Testes novos em `testes/teste_refino.py`:
+- um disco sintético como o Os Cobras (11 faixas, 2 trocas com pausa curta e o vídeo terminando em silêncio): antes saíam 10 faixas com "Track N"; agora saem 11, com os nomes, cada corte a menos de 3 s da troca;
+- um como o Ed Lincoln (11 músicas, Discogs com 12, pausa de 0,4 s no meio da 1ª): continua com 11 pedaços e "Track N", sem inventar o corte.
+
+Os cortes dos 10 discos de conferência continuam idênticos.
 
 ### EJ. Nome de pasta com uma lista colada (o disco se perdia)
 
@@ -1607,7 +1622,11 @@ Não dá para ouvir nem refazer a música com isso; serve para testar ajustes do
 
 O "✂ Editar disco" de um disco já cortado, salvo **sem mudança**, também guarda as medidas (com os cortes de agora como gabarito). Ele não regrava a pasta e não conta no resumo "📊 Editor". As medidas obedecem à mesma opção das Configurações que o arquivo de correções.
 
-### EM. Pendência que falha de novo continua em "Precisam de você"
+### EM. A tela do editor cabe na tela
+
+A janela abria com 760 de altura onde o Windows quisesse, e numa tela de notebook os botões de baixo ("Salvar", "Cancelar") ficavam fora da tela. Agora ela abre no alto da tela, centralizada, e nunca fica mais alta que a tela (menos a barra de tarefas). Numa tela baixa quem encolhe é o desenho da onda, e os botões continuam visíveis.
+
+### EN. Pendência que falha de novo continua em "Precisam de você"
 
 Quando uma pendência voltava para a fila (✏️ Corrigir busca, Enfileirar, cortes do editor) e a nova tentativa não dava certo, ela saía da lista "rejeitada de vez", junto com o áudio guardado para o ✂ Editar. O log ainda dizia "fica em Precisam de você". Aconteceu duas vezes com o "Hermeto Pascoal - Hermeto" (busca "Hermeto Pascoal – 1970").
 
