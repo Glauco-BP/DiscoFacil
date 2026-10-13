@@ -1653,3 +1653,18 @@ Quando uma pendência voltava para a fila (✏️ Corrigir busca, Enfileirar, co
 Agora ela continua na lista, com o motivo: "Tentou de novo em 05/10 23:22 e não deu: …". Ficam também o áudio e o que você corrigiu (a busca, os cortes). Só sai quando dá certo ou quando você descarta.
 
 Testado em `testes/teste_refino.py` (novo) e `testes/teste_editor.py`.
+
+## VERSÃO 12.20
+
+### ER. Busca de playlists: "chave não configurada" com a chave configurada
+
+Na 🔍 busca de playlists, o programa dizia para conferir se a "YouTube Data API Key" estava configurada, mesmo com a chave nas Configurações (o log do início dizia "YouTube Data API configurada"). A busca usava a biblioteca do Google (`google-api-python-client`), que nunca esteve no `requirements.txt`. Por isso ela não entrava no .exe gerado pelo GitHub Actions desde a 12.18, e a busca desistia antes de usar a chave. A listagem dos vídeos de um canal tinha o mesmo problema, mas sem aviso: caía para o yt-dlp, que é mais lento e não vê a duração dos vídeos.
+
+Agora as duas chamam a YouTube Data API direto, com o `requests` que o programa já usa para o Discogs. O .exe não cresce e não depende de arquivos extras. Quando a API falha, a mensagem diz o motivo real, sem nunca mostrar a chave:
+- sem chave;
+- chave recusada;
+- cota diária esgotada;
+- API não ativada no projeto da chave;
+- sem internet.
+
+Testado em `testes/teste_youtube_api.py` (novo, com respostas da API simuladas, sem internet): busca com filtro de qualidade, cada motivo de falha, a listagem de canal paginada e uma verificação de que nenhum arquivo do programa usa mais a biblioteca do Google.

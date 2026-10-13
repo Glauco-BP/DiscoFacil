@@ -9,10 +9,36 @@ clientes do YouTube e fica com o melhor áudio; usa os cookies do navegador
 conhecidos (403/robô, "page needs to be reloaded", restrição de idade).
 O motivo da última falha fica em last_error / last_error_retryable.
 """
+import requests
 import yt_dlp
 import dependencias
 from pathlib import Path
 from typing import Dict, List, Optional, Callable
+
+YOUTUBE_API = 'https://www.googleapis.com/youtube/v3/'
+YOUTUBE_API_TIMEOUT_SEG = 20
+
+
+class ErroYouTubeAPI(Exception):
+    """Falha da YouTube Data API, com o motivo em português (nunca a chave)."""
+
+
+def _motivo_youtube(resposta) -> str:
+    """O motivo de uma resposta de erro da API em português (o texto nunca traz a chave)."""
+    try:
+        erros = (resposta.json().get('error') or {}).get('errors') or [{}]
+        razao = erros[0].get('reason', '')
+    except Exception:
+        razao = ''
+    if razao in ('quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded'):
+        return "a cota diária da YouTube Data API acabou (volta a funcionar amanhã)"
+    if razao in ('accessNotConfigured', 'SERVICE_DISABLED'):
+        return "a 'YouTube Data API v3' não está ativada no projeto da chave (Google Cloud → Biblioteca de APIs)"
+    if razao in ('keyInvalid', 'badRequest') or resposta.status_code == 400:
+        return "a chave da YouTube Data API foi recusada (confira se foi copiada inteira, em Configurações)"
+    if resposta.status_code == 403:
+        return "a YouTube Data API recusou o pedido (chave sem permissão ou restrita)"
+    return f"a YouTube Data API respondeu com erro {resposta.status_code}"
 
 class DummyLogger:
     """
@@ -78,6 +104,7 @@ class YouTubeDownloader:
         self.last_error = None
         self._ja_tentou_android = False
         self.last_error_retryable = True
+        self.ultimo_erro_youtube = None      # motivo da última falha da YouTube Data API (sem a chave)
     
     def get_video_info(self, url: str) -> Dict:
         """Título, descrição, duração, uploader, thumbnail, id e capítulos do vídeo; {} em caso de erro."""
@@ -179,19 +206,35 @@ class YouTubeDownloader:
         
         return None
     
+    def _youtube_api(self, recurso: str, **params) -> Dict:
+        """
+        Uma chamada à YouTube Data API v3 com requests (12.20: antes era a biblioteca do Google,
+        que não ia no .exe - a busca de playlists dizia "chave não configurada"). Levanta
+        ErroYouTubeAPI com o motivo em português; a chave nunca aparece no motivo.
+        """
+        chave = (self.config.get("api_keys.google_custom_search.api_key") or '').strip() if self.config else ''
+        if not chave:
+            raise ErroYouTubeAPI("a 'YouTube Data API Key' não está configurada (Configurações)")
+        try:
+            r = requests.get(YOUTUBE_API + recurso, params=dict(params, key=chave), timeout=YOUTUBE_API_TIMEOUT_SEG)
+        except requests.exceptions.Timeout:
+            raise ErroYouTubeAPI("a YouTube Data API não respondeu a tempo") from None
+        except requests.exceptions.RequestException:
+            raise ErroYouTubeAPI("sem conexão com a YouTube Data API (confira a internet)") from None
+        if r.status_code != 200:
+            raise ErroYouTubeAPI(_motivo_youtube(r))
+        try:
+            return r.json()
+        except ValueError:
+            raise ErroYouTubeAPI("a YouTube Data API devolveu uma resposta que não deu pra ler") from None
+
     def _get_channel_videos_via_api(self, channel_url: str, progress_callback: Optional[Callable] = None) -> List[Dict]:
         """
         Lista os álbuns de um canal pela YouTube Data API v3 (sem o limite
         do yt-dlp): vídeos com palavra-chave de álbum no título ou >= 25 min.
         None se a API não estiver disponível (sem biblioteca, chave ou erro).
         """
-        try:
-            from googleapiclient.discovery import build
-        except ImportError:
-            return None
-
-        api_key = self.config.get("api_keys.google_custom_search.api_key")
-        if not api_key:
+        if not (self.config and (self.config.get("api_keys.google_custom_search.api_key") or '').strip()):
             return None
 
         channel_id = self._get_channel_id_from_url(channel_url)
@@ -199,15 +242,10 @@ class YouTubeDownloader:
             return None
         
         try:
-            youtube = build('youtube', 'v3', developerKey=api_key)
-            
             # 1. Playlist de uploads do canal
-            channels_response = youtube.channels().list(
-                part='contentDetails',
-                id=channel_id
-            ).execute()
+            channels_response = self._youtube_api('channels', part='contentDetails', id=channel_id)
             
-            if not channels_response['items']:
+            if not channels_response.get('items'):
                 return None
             
             uploads_playlist_id = channels_response['items'][0]['contentDetails']['relatedPlaylists']['uploads']
@@ -220,12 +258,10 @@ class YouTubeDownloader:
             album_keywords = self.config.get("album_keywords", [])
             
             while True:
-                playlist_response = youtube.playlistItems().list(
-                    part='snippet',
-                    playlistId=uploads_playlist_id,
-                    maxResults=50,
-                    pageToken=next_page_token
-                ).execute()
+                params = dict(part='snippet', playlistId=uploads_playlist_id, maxResults=50)
+                if next_page_token:
+                    params['pageToken'] = next_page_token
+                playlist_response = self._youtube_api('playlistItems', **params)
                 
                 page_count += 1
                 
@@ -235,10 +271,7 @@ class YouTubeDownloader:
                     video_ids.append(video_id)
                 
                 # Duração de todos os vídeos da página numa chamada só
-                videos_response = youtube.videos().list(
-                    part='contentDetails,snippet',
-                    id=','.join(video_ids)
-                ).execute()
+                videos_response = self._youtube_api('videos', part='contentDetails,snippet', id=','.join(video_ids))
                 
                 for video in videos_response['items']:
                     title = video['snippet']['title']
@@ -268,8 +301,12 @@ class YouTubeDownloader:
             
             return videos
             
-        except Exception as e:
-            print(f"⚠️  YouTube API falhou: {e}")
+        except ErroYouTubeAPI as e:
+            self.ultimo_erro_youtube = str(e)
+            if progress_callback:
+                progress_callback(f"⚠️  YouTube API: {e}")
+            return None
+        except Exception:
             return None
     
     def _probe_best_audio_bitrate(self, video_url: str) -> Optional[float]:
@@ -301,28 +338,14 @@ class YouTubeDownloader:
         Busca playlists por palavra-chave na YouTube Data API v3 (tela de
         busca). Descarta as de fonte abaixo do bitrate mínimo.
 
-        None = API indisponível (sem biblioteca/chave ou erro); [] = nada achado.
+        None = API indisponível (o motivo fica em ultimo_erro_youtube); [] = nada achado.
         Cada item: {'playlist_id', 'title', 'channel_title', 'url',
         'item_count' (ou None)}.
         """
+        self.ultimo_erro_youtube = None
         try:
-            from googleapiclient.discovery import build
-        except ImportError:
-            return None
-
-        api_key = self.config.get("api_keys.google_custom_search.api_key")
-        if not api_key:
-            return None
-
-        try:
-            youtube = build('youtube', 'v3', developerKey=api_key)
-
-            search_response = youtube.search().list(
-                part='snippet',
-                q=query,
-                type='playlist',
-                maxResults=max_results,
-            ).execute()
+            search_response = self._youtube_api('search', part='snippet', q=query, type='playlist',
+                                                maxResults=max_results)
 
             items = search_response.get('items', [])
             if not items:
@@ -335,10 +358,7 @@ class YouTubeDownloader:
             item_counts = {}
             if playlist_ids:
                 try:
-                    details_response = youtube.playlists().list(
-                        part='contentDetails',
-                        id=','.join(playlist_ids),
-                    ).execute()
+                    details_response = self._youtube_api('playlists', part='contentDetails', id=','.join(playlist_ids))
                     for d in details_response.get('items', []):
                         item_counts[d['id']] = d.get('contentDetails', {}).get('itemCount')
                 except Exception:
@@ -371,11 +391,8 @@ class YouTubeDownloader:
                 filtered = []
                 for r in results:
                     try:
-                        first_item_response = youtube.playlistItems().list(
-                            part='contentDetails',
-                            playlistId=r['playlist_id'],
-                            maxResults=1,
-                        ).execute()
+                        first_item_response = self._youtube_api('playlistItems', part='contentDetails',
+                                                                playlistId=r['playlist_id'], maxResults=1)
                         first_items = first_item_response.get('items', [])
                         if not first_items:
                             continue  # vazia/inacessível
@@ -394,8 +411,11 @@ class YouTubeDownloader:
             
             return results
 
-        except Exception as e:
-            print(f"⚠️  Busca de playlists falhou: {e}")
+        except ErroYouTubeAPI as e:
+            self.ultimo_erro_youtube = str(e)
+            return None
+        except Exception:
+            self.ultimo_erro_youtube = "a busca falhou por um erro inesperado"
             return None
 
     def get_channel_videos(self, channel_url: str, progress_callback: Optional[Callable] = None) -> List[Dict]:

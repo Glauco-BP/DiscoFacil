@@ -4,7 +4,7 @@ Transforma vídeos de **disco inteiro do YouTube** ("Full Album") em **faixas MP
 
 > **Por enquanto, só para Windows 64 bits** (Windows 10 ou 11).
 
-**[⬇ Baixar](../../releases/latest)** · **[📘 Tutorial (PDF, com figuras)](Tutorial_DiscoFacil_12.19.pdf)** · **[🔑 Como conseguir as chaves](#como-conseguir-as-chaves)** · **[🖼 Telas](#telas)**
+**[⬇ Baixar](../../releases/latest)** · **[📘 Tutorial (PDF, com figuras)](Tutorial_DiscoFacil_12.20.pdf)** · **[🔑 Como conseguir as chaves](#como-conseguir-as-chaves)** · **[🖼 Telas](#telas)**
 
 O programa descobre qual disco é pelo [Discogs](https://www.discogs.com), acha onde cada música começa (pelas pausas, pelas durações oficiais, pelos capítulos ou pelos tempos que alguém postou nos comentários) e grava cada uma num arquivo. Quando não tem certeza, **não grava nada errado**: o disco vai para a lista **"Precisam de você"**, onde você decide — e pode **ouvir o disco e acertar os cortes** numa tela própria.
 
@@ -19,7 +19,7 @@ O programa descobre qual disco é pelo [Discogs](https://www.discogs.com), acha 
    - cole a sua **chave do Discogs** ([como conseguir](#discogs-obrigatória)). Cada pessoa usa a sua.
 4. Cole o link do vídeo e clique em **Enfileirar**.
 
-O **[tutorial](Tutorial_DiscoFacil_12.19.pdf)** (também dentro do zip) explica cada tela, passo a passo, com figuras.
+O **[tutorial](Tutorial_DiscoFacil_12.20.pdf)** (também dentro do zip) explica cada tela, passo a passo, com figuras.
 
 **Para experimentar**: dois canais com muitos discos completos, bons para testar (modo **Canal Inteiro**, ou um vídeo de cada vez):
 - [MultiWoking](https://www.youtube.com/@MultiWoking)

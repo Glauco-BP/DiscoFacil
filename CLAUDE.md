@@ -6,7 +6,7 @@ Este arquivo é lido automaticamente pelo Claude quando a conversa é ligada a e
 
 - **DiscoFácil**: transforma vídeos de disco inteiro do YouTube em faixas MP3 com tags (nome, número, artista, álbum, ano, capa). Python 3.12 + Tkinter, **só Windows 64 bits** (o .exe é gerado pelo GitHub Actions).
 - Repositório: **https://github.com/Glauco-BP/DiscoFacil** (o usuário antigo `glaucoaiexcorrea-glitch` foi trocado por `Glauco-BP` em 06/10/2026; os links antigos redirecionam). O link fica em `versao.py` (`APP_URL`), e o programa o manda pro Discogs e o MusicBrainz como identificação.
-- Versão atual: ver `versao.py` (12.19 quando este arquivo foi atualizado). Por dentro: `ARQUITETURA.md`. Histórico: `MUDANCAS.md`. Planos: `PLANO.md`. Testes: `testes/LEIA.md`.
+- Versão atual: ver `versao.py` (12.20 quando este arquivo foi atualizado). Por dentro: `ARQUITETURA.md`. Histórico: `MUDANCAS.md`. Planos: `PLANO.md`. Testes: `testes/LEIA.md`.
 
 ## Como o Glauco quer trabalhar
 
@@ -33,7 +33,7 @@ Este arquivo é lido automaticamente pelo Claude quando a conversa é ligada a e
 ## Testes
 
 - `python testes/rodar_todos.py`: todos, cerca de 15 min. Rode em segundo plano (`nohup ... &`) e espere o fim, porque a saída só aparece no final. Precisa de `ffmpeg` e, no Linux, de `xvfb-run` para as telas.
-- `python testes/conferir_cortes.py`: cerca de 1 min. Corta 10 discos de teste e compara cada corte, na posição exata, com `testes/referencia_cortes.json` (os cortes da 12.8, iguais até a 12.19). **Rode depois de qualquer ajuste nos cortes.** Se um disco mudou de propósito, grave a referência nova com `--gravar` e explique no `MUDANCAS.md`.
+- `python testes/conferir_cortes.py`: cerca de 1 min. Corta 10 discos de teste e compara cada corte, na posição exata, com `testes/referencia_cortes.json` (os cortes da 12.8, iguais até a 12.20). **Rode depois de qualquer ajuste nos cortes.** Se um disco mudou de propósito, grave a referência nova com `--gravar` e explique no `MUDANCAS.md`.
 
 ## Publicar uma versão
 
