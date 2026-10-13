@@ -202,12 +202,9 @@ class BuscaMixin:
                     search_btn_action.config(state='normal', text="🔍  Buscar")
                     if results is None:
                         status_label.config(text="")
-                        messagebox.showerror(
-                            "Erro",
-                            "Não foi possível buscar. Confira se a 'YouTube Data API Key' está "
-                            "configurada em Configurações (a mesma usada pra listar vídeos de "
-                            "canal) e se o programa tem acesso à internet."
-                        )
+                        motivo = getattr(self.downloader, 'ultimo_erro_youtube', None) or \
+                            "confira a 'YouTube Data API Key' em Configurações e a internet"
+                        messagebox.showerror("Erro", f"Não foi possível buscar: {motivo}.")
                         return
                     state['results'] = results
                     if not results:
