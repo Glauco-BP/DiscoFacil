@@ -326,6 +326,12 @@ class EditorMixin:
             avisar("Medindo o áudio, os silêncios e as mudanças no som (alguns segundos)...")
             ed.carregar(marcas=marcas)
             ed.adicionar_candidatos('nomes de antes', info['nomes'])
+            rid = (info.get('album') or {}).get('DISCOGS_RELEASE_ID')
+            if rid and getattr(self, 'catalogo', None) is not None:
+                # 12.19: disco que saiu com "Track N" - os nomes do Discogs pelo ID gravado nas tags
+                avisar("Buscando no Discogs os nomes das músicas deste disco...")
+                faixas = self.catalogo.faixas_do_release(rid) or []
+                ed.adicionar_candidatos(EC.FONTE_DISCOGS_DAS_TAGS, [f.get('title') for f in faixas])
             # marcas de antes que caem num silêncio aparecem como "silêncio"
             for m in ed.marcas:
                 if any(a - 1.0 <= m['pos'] <= b + 1.0 for a, b, _ in ed.silencios):
@@ -334,7 +340,7 @@ class EditorMixin:
             return ed
 
         def ao_salvar(ed):
-            if not ed.mudou:
+            if not ed.mudou and ed.nomes() == list(info_box['info']['nomes']):
                 # 12.19: mesmo sem mudança, os cortes de um disco já conferido servem de gabarito pra análise
                 self._anotar_correcoes(ed, {'pasta': pasta.name, 'sem_mudanca': True})
                 messagebox.showinfo("Editar disco", "Nada mudou: o disco ficou como estava.", parent=self.root)

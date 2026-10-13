@@ -26,11 +26,13 @@ import os
 import shutil
 import time
 from pathlib import Path
+from typing import Optional
 
 import edicao_cortes
 import encaixe as ENC
 import nomes
 import saida
+from ajustes import CutTuning
 from audio_util import duracao_do_arquivo
 from catalogo import inicios_de_texto, pistas_do_video
 from corte_album import AlbumCutter
@@ -53,6 +55,9 @@ ENCAIXE_OUTRO_DISCO = 0.5
 # Comentário com tempos só vale se pelo menos esta fração dos títulos bate com o Discogs, na mesma
 # posição (e o primeiro e o último batem, e nunca dois seguidos sem bater)
 COMENTARIO_TITULOS_MIN = 0.8
+# "Processar mesmo assim" de disco sem durações: com o nº de pedaços a isto ou mais do Discogs,
+# o "Track N" juntaria músicas - o disco fica em Precisam de você (12.19, Trio Samba: 7 pra 12)
+TRACK_N_DIFERENCA_MAX = 2
 
 
 def _mss(segundos) -> str:
@@ -1011,6 +1016,13 @@ class AlbumMixin:
             elif not cutter.smart_cut(all_gaps, allow_cross_validation=allow_cross_validation):
                 self.log("   ✗ Smart cut falhou")
                 return None
+            elif (source == 'discogs' and allow_cross_validation and metadata['tracks'] and not tem_duracoes
+                  and (motivo := self._track_n_longe_do_discogs(cutter.cuts, len(metadata['tracks'])))):
+                # 12.19: "processar mesmo assim" sem durações saía com "Track N" e músicas juntas
+                # (Trio Samba: 7 pedaços pra 12 músicas, um de 15 min) - fica em Precisam de você
+                self.log(f"   ✗ {motivo}")
+                self._notas_corte = dict(getattr(self, '_notas_corte', {}) or {}, motivo=motivo)
+                return None
 
             estimadas = [c['track'] for c in cutter.cuts or [] if c.get('corte_estimado')]
             if estimadas:
@@ -1038,6 +1050,29 @@ class AlbumMixin:
         except Exception as e:
             self.log(f"✗ Erro na separação: {e} [{onde_quebrou(e)}]")
             return None
+
+    def _track_n_longe_do_discogs(self, cortes, n_discogs) -> Optional[str]:
+        """
+        "Processar mesmo assim" de disco sem durações, cortado só pelas pausas ("Track N"): o motivo
+        pra NÃO gravar (ou None). Não grava quando o nº de pedaços fica 2 ou mais longe do Discogs, ou
+        quando há pedaço comprido demais (2+ músicas juntas, ver SUSPICIOUS_LENGTH_VS_MEDIAN_*). Com 1
+        de diferença e sem pedaço comprido, sai como antes ("Track N", sem nome errado).
+        """
+        cortes = cortes or []
+        if not cortes or len(cortes) == n_discogs:
+            return None
+        if abs(len(cortes) - n_discogs) >= TRACK_N_DIFERENCA_MAX:
+            return (f"Os silêncios dão {len(cortes)} pedaços e o Discogs tem {n_discogs} músicas (sem durações) - "
+                    f"gravar com \"Track N\" juntaria músicas; fica em Precisam de você (use ✂ Editar)")
+        durs = [c['end'] - c['start'] for c in cortes if c.get('end') is not None and c.get('start') is not None]
+        if len(durs) >= 3:
+            med = sorted(durs)[len(durs) // 2]
+            longos = [d for d in durs if d > med * CutTuning.SUSPICIOUS_LENGTH_VS_MEDIAN_MULTIPLIER
+                      and d > med + CutTuning.SUSPICIOUS_LENGTH_VS_MEDIAN_MARGIN_SEC]
+            if longos:
+                return (f"Pedaço de {max(longos) / 60:.1f} min (a mediana é {med / 60:.1f} min): devem ser músicas "
+                        f"juntas, e o Discogs não tem as durações - fica em Precisam de você (use ✂ Editar)")
+        return None
 
     def _reavaliar_com_o_corte(self, cutter, metadata, discogs_data, candidatos, video_info):
         """

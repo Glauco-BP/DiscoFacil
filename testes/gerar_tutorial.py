@@ -598,7 +598,8 @@ def montar_pdf(fotos, destino, versao):
          'Se for o certo, <b>Enfileirar</b>.'],
         ['Corte não bateu', 'O disco é este, mas as músicas não se separaram como o Discogs diz.',
          '<b>Enfileirar</b> = processar assim mesmo: as músicas emendadas, sem pausa, são separadas pela '
-         'duração e saem marcadas "a conferir". Ou <b>✂ Editar</b>: você ouve e acerta os cortes (seção 8). '
+         'duração e saem marcadas "a conferir". Se o Discogs não tem as durações e o corte juntaria músicas, '
+         'o disco continua aqui. Ou <b>✂ Editar</b>: você ouve e acerta os cortes (seção 8). '
          'Se faltar pausa demais, continua aqui: use <b>✂ Editar</b>, <b>Informar tempos</b> ou <b>Buscar '
          'outra versão</b> do vídeo.'],
         ['Talvez outro disco', 'O áudio não combina com o disco achado: pode ser outra edição.',
@@ -681,7 +682,7 @@ def montar_pdf(fotos, destino, versao):
                'amarelo pra você conferir (o título tinha "Sotfly"; corrija pra "Softly"). Os cortes e os nomes '
                'vêm dos capítulos, da descrição ou de um comentário do vídeo, se houver. Quando uma lista do '
                'vídeo tem o mesmo número de músicas que os pedaços (na abertura ou depois que você marca os '
-               'cortes que faltavam), os nomes entram sozinhos, com o aviso amarelo <b>"Nomes da ...: '
+               'cortes que faltavam), os nomes entram sozinhos, com o aviso amarelo <b>"Nomes: ... - '
                'confira"</b>. O palpite do Discogs fica só no duplo clique.'))
     h.append(img('editor_sem_discogs', maxh=9 * cm))
     salvar_ = [S('Salvar')]
@@ -689,7 +690,9 @@ def montar_pdf(fotos, destino, versao):
                'com os nomes da tabela. O áudio já está guardado, não baixa de novo.'))
     salvar_.append(L('<b>Disco já cortado</b> (✂ Editar disco: escolha a pasta do disco): a pasta é regravada nos '
                'cortes novos, com as mesmas tags e a capa. Os arquivos de antes ficam em '
-               '<b>.audios_pasta_pendencia\\antes_da_edicao</b>, na pasta dos discos.'))
+               '<b>.audios_pasta_pendencia\\antes_da_edicao</b>, na pasta dos discos. Se o disco saiu com '
+               '"Track N", o editor busca os nomes no Discogs (pelo disco gravado nas tags) e os põe quando o '
+               'número de pedaços bate.'))
     salvar_.append(L('<b>As suas correções</b> (o que o programa sugeriu e o que você deixou) ficam anotadas em '
                '<b>logs\\correcoes_do_editor.txt</b>, e o "desenho do volume" de cada disco editado (uns 100 KB, '
                'não dá pra ouvir) em <b>logs\\medidas_do_editor</b>. De tempos em tempos, mande o arquivo e essa '

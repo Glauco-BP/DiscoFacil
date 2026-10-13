@@ -1630,7 +1630,23 @@ A janela abria com 760 de altura onde o Windows quisesse, e numa tela de noteboo
 
 O GitHub avisava que as peças do `release.yml` usavam o Node.js 20, que está sendo desligado. Elas foram trocadas pelas versões que usam o Node.js 24: `actions/checkout@v6`, `actions/setup-python@v6`, `actions/upload-artifact@v6` e `softprops/action-gh-release@v3` (a que anexa o zip à versão). O programa e o zip não mudam.
 
-### EO. Pendência que falha de novo continua em "Precisam de você"
+### EO. "Processar mesmo assim" sem durações não junta mais músicas em "Track N"
+
+No teste de 12/10, Enfileirar em "Corte não bateu" gravou o Trio Samba com 7 pedaços para 12 músicas (um de 15 min) e o Sambossa 5 com 7 de 12, os dois com "Track N". O Discogs deles não tem as durações, então o programa cortou só pelas pausas e juntou as músicas que não tinham pausa entre si.
+
+Agora, quando o Discogs não tem as durações e o disco seria gravado com "Track N", ele **continua em "Precisam de você"** (com o motivo) se:
+- o nº de pedaços fica a 2 ou mais do nº de músicas do Discogs; ou
+- há um pedaço comprido demais (mais que o dobro da mediana e 90 s acima dela: músicas juntas).
+
+Com 1 de diferença e sem pedaço comprido, sai com "Track N" como antes, sem nome errado (Trio Marayá e Bola Sete: 12 pedaços para 11 músicas).
+
+### EP. ✂ Editar disco: os nomes do Discogs pelo release gravado nas tags
+
+Um disco gravado com "Track N" não tinha de onde tirar os nomes no ✂ Editar disco (só "Colar nomes"). Agora o editor lê nas tags o release do Discogs que o programa gravou e busca a lista de músicas dele. Quando o nº de pedaços bate (na abertura ou depois que você marca os cortes que faltavam), os nomes entram com o aviso "⚠ Nomes: Discogs (pelas tags do disco) - confira" e vão para os arquivos ao salvar. Isso vale mesmo que você não tenha mexido nos cortes: trocar só os nomes também regrava a pasta. Sem conexão ou sem chave do Discogs, o editor abre do mesmo jeito.
+
+O arquivo de correções também passa a dizer de onde vieram os nomes (`fonte_dos_nomes`): "Discogs", "capítulos do vídeo", "nomes de antes"... Antes, os nomes que vinham dos capítulos apareciam como "Discogs/arquivos".
+
+### EQ. Pendência que falha de novo continua em "Precisam de você"
 
 Quando uma pendência voltava para a fila (✏️ Corrigir busca, Enfileirar, cortes do editor) e a nova tentativa não dava certo, ela saía da lista "rejeitada de vez", junto com o áudio guardado para o ✂ Editar. O log ainda dizia "fica em Precisam de você". Aconteceu duas vezes com o "Hermeto Pascoal - Hermeto" (busca "Hermeto Pascoal – 1970").
 

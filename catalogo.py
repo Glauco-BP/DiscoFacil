@@ -292,6 +292,19 @@ class Catalogo:
                 self.last_error = 'rate_limited'
         return resultados
 
+    def faixas_do_release(self, release_id) -> Optional[List[Dict]]:
+        """As faixas de um release do Discogs pelo ID (o que o programa grava nas tags do disco), ou
+        None se não deu (sem chave, sem conexão, ID que não existe). Usado pelo ✂ Editar disco."""
+        try:
+            rid = int(str(release_id).strip())
+            r = self._discogs_get(f"https://api.discogs.com/releases/{rid}",
+                                  {'token': self.config.get('discogs_token', '')}, timeout=15)
+            if r.status_code != 200:
+                return None
+            return _faixas_do_release(r.json()) or None
+        except Exception:
+            return None
+
     def _ler_candidatos(self, resultados, _log):
         """Detalhe de cada release (até MAX_CANDIDATOS). Candidatos sem duração também valem."""
         candidatos, com_429, sem_conexao = [], 0, 0

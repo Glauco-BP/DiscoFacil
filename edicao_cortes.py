@@ -315,12 +315,15 @@ def silencios_dos_gaps(clusters) -> List[tuple]:
 
 
 # ------------------------------------------------------------------ o estado da edição
+# ✂ Editar disco: o release do Discogs gravado nas tags do disco (é o disco certo: o programa o
+# identificou) - dá os nomes de um disco que saiu com "Track N" (12.19)
+FONTE_DISCOGS_DAS_TAGS = 'Discogs (pelas tags do disco)'
 # Listas sugeridas que podem dar os nomes sozinhas quando o nº de pedaços bate (disco sem Discogs
 # confirmado), na ordem de preferência: só as do próprio vídeo (são deste disco). O palpite do
 # Discogs não: pode ser outro disco que por acaso tem o mesmo nº de músicas que os pedaços achados
 # (ex.: 7 pedaços de um disco de 10, com 3 trocas sem pausa, e um palpite de 7 faixas). Ele e os
 # "colados" (que já viraram nomes) só aparecem no duplo clique.
-FONTES_PREFERIDAS = ('capítulos do vídeo', 'descrição do vídeo', 'comentário do vídeo')
+FONTES_PREFERIDAS = ('capítulos do vídeo', 'descrição do vídeo', 'comentário do vídeo', FONTE_DISCOGS_DAS_TAGS)
 
 
 def _ordem_da_fonte(fonte) -> int:
@@ -542,13 +545,18 @@ class Edicao:
         (None, None) se nenhuma bate."""
         if self.oficiais and len(self.oficiais) == n:
             return [o['title'] for o in self.oficiais], None
-        if self.nomes_fixos and len(self.nomes_fixos) == n:
+        if self.nomes_fixos and len(self.nomes_fixos) == n and not self._nomes_fixos_genericos():
             return list(self.nomes_fixos), None
         if not self.oficiais:
             for fonte in sorted((f for f in self.candidatos if f in FONTES_PREFERIDAS), key=_ordem_da_fonte):
                 if len(self.candidatos[fonte]) == n:
                     return list(self.candidatos[fonte]), fonte
         return None, None
+
+    def _nomes_fixos_genericos(self) -> bool:
+        """Disco já cortado com "Track 1", "Track 2"...: esses nomes não são de verdade e dão lugar a
+        uma lista sugerida que bata (o Discogs das tags)."""
+        return bool(self.nomes_fixos) and all(re.fullmatch(r'Track \d+', n or '') for n in self.nomes_fixos)
 
     def nomes_automaticos(self) -> List[str]:
         """Os nomes que o programa põe em cada pedaço (sem os que você escreveu)."""
@@ -1038,11 +1046,19 @@ def registro_de_correcoes(ed: Edicao, extra: Optional[Dict] = None) -> Dict:
          'pausas_no_disco': len(ed.silencios), 'mudancas_no_som': len(ed.sugestoes_som),
          'cortes': cortes, 'nomes_trocados': trocados,
          'nomes_da_abertura': (ed.sugestao_inicial or {}).get('nomes') or [],
-         'fonte_dos_nomes': ed.fonte_dos_nomes() or ('Discogs/arquivos' if len(genericos) < len(nomes_auto) else None),
+         'fonte_dos_nomes': ed.fonte_dos_nomes() or (_fonte_fixa(ed) if len(genericos) < len(nomes_auto) else None),
          'nomes_automaticos_mantidos': sum(1 for a, n in zip(nomes_auto, nomes_fim)
                                            if a == n and not re.fullmatch(r'Track \d+', a))}
     r.update(extra or {})
     return r
+
+
+def _fonte_fixa(ed: Edicao) -> str:
+    """De onde vieram os nomes que não são de lista sugerida: o Discogs confirmado, os tempos do vídeo
+    (capítulos/comentário, que também dão os cortes) ou os arquivos do disco já cortado."""
+    if ed.oficiais and len(ed.oficiais) == len(ed.marcas) + 1:
+        return 'Discogs'
+    return getattr(ed, 'fonte_dos_cortes', None) or ('nomes de antes' if ed.origem == 'pasta' else 'lista fixa')
 
 
 def _arred(x):

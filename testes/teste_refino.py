@@ -9,7 +9,10 @@
     do próprio vídeo (capítulos, descrição, comentário) tinha o mesmo nº de músicas que os pedaços;
   - pendência que falha de novo (Corrigir busca que não acha, Enfileirar, cortes do editor) sumia
     de "Precisam de você" junto com o áudio guardado (Hermeto Pascoal - Hermeto, duas vezes);
-  - a tela do editor abre no alto e cabe numa tela baixa (os botões de baixo ficavam pra fora).
+  - a tela do editor abre no alto e cabe numa tela baixa (os botões de baixo ficavam pra fora);
+  - "processar mesmo assim" sem durações com o nº de pedaços longe do Discogs fica em Precisam de você
+    (Trio Samba: 7 pedaços pra 12 músicas, gravado com "Track N" e uma faixa de 15 min);
+  - ✂ Editar disco de um disco gravado com "Track N": os nomes do Discogs pelo release das tags.
 """
 import os, sys, subprocess, time
 if not os.environ.get('DISPLAY') and not os.environ.get('DF_SEM_XVFB'):
@@ -73,6 +76,56 @@ cuts = sc.cut_by_cross_validation()
 t(f"Ed Lincoln: {len(cuts or [])} pedaços pra 12 do Discogs - a pausa no meio da 1ª música não vira corte "
   f"(fica 'Track N', em Precisam de você)",
   cuts and len(cuts) == 11 and cuts[0]['title'] != 'Faixa 1' and all(c['end'] is None or c['end'] > 160 for c in cuts[:1]))
+
+# Trio Samba (log de 12/10): "Corte não bateu" + Enfileirar ("processar mesmo assim"), Discogs com 12
+# músicas sem durações e só 7 pedaços nas pausas: saía com "Track N" e uma faixa de 15 min. Agora fica
+# em Precisam de você; com 1 de diferença e sem pedaço comprido, sai "Track N" como antes.
+import types
+from falso_discogs import config_falsa
+
+
+def app_de_corte(pasta):
+    G = main.FullTracksDownloaderGUI; g = G.__new__(G); logs = []
+    g.log = lambda m='': logs.append(str(m)); g._reg = lambda *a: logs.append('REG ' + ' | '.join(map(str, a)))
+    g.config = config_falsa(pasta)
+    g.metadata_manager = main.MetadataManager()
+    g.acervo_index = types.SimpleNamespace(add=lambda *a, **k: None, has=lambda *a: False)
+    g.catalogo = types.SimpleNamespace(musicbrainz_edicoes=lambda *a, **k: [], ultimo_motivo_mb='teste',
+                                       musicbrainz=lambda *a, **k: None)
+    g._notas_corte = {}
+    return g, logs
+
+
+def disco_com_emendas(n, emendas, nome):
+    partes = []
+    for k in range(n):
+        partes.append(musica(150 + 7 * k))
+        if k < n - 1:
+            partes.append(musica(0.01) if k in emendas else silencio(2.0))
+    return salvar(np.concatenate(partes), nome)
+
+
+def processar_mesmo_assim(arq, n_discogs, pasta_nome):
+    pasta = tmp('refino', pasta_nome, 'x')[:-2]; shutil.rmtree(pasta, ignore_errors=True); os.makedirs(pasta)
+    g, logs = app_de_corte(pasta)
+    dd = {'found': True, 'title': 'Samba Samba Samba', 'artists': ['Samba Trio'], 'year': '1964',
+          'tracks': [{'number': k + 1, 'title': f'Música {k + 1}', 'duration': ''} for k in range(n_discogs)],
+          'discogs_master_id': None, 'discogs_release_id': 5212192, 'cover_image': None, 'confidence_pct': 79}
+    ok = g._process_separation_by_source(arq, 'discogs', dd['tracks'], True, dd, {}, pasta,
+                                         allow_cross_validation=True)
+    return ok, g, pasta
+
+
+import shutil, glob
+arq_ts = disco_com_emendas(12, {1, 3, 6, 7, 8}, 'refino_triosamba.wav')
+ok, g, pasta = processar_mesmo_assim(arq_ts, 12, 'ts')
+t(f"Trio Samba: 7 pedaços pra 12 músicas sem durações - não grava \"Track N\" "
+  f"({g._notas_corte.get('motivo', '')[:60]}...)",
+  not ok and not glob.glob(os.path.join(pasta, '*.mp3')) and 'Precisam de você' in g._notas_corte.get('motivo', ''))
+arq_tm = disco_com_emendas(11, set(), 'refino_triomaraya.wav')
+ok, g, pasta = processar_mesmo_assim(arq_tm, 10, 'tm')
+t(f"11 pedaços pra 10 músicas, sem pedaço comprido: sai com \"Track N\" como antes "
+  f"({len(glob.glob(os.path.join(pasta, '*.mp3')))} faixas)", ok and len(glob.glob(os.path.join(pasta, '*.mp3'))) == 11)
 
 # ------------------------------------------------------------------ nome da pasta (WinError 123)
 LISTA = ('01 - Eu sei que vou te amar (Tom Jobim/Vinícius de Moraes)\n02 - Paca tatu, cotia não (Nico Assumpção)\n'
@@ -181,6 +234,49 @@ app._enfileirar_pendencias([volta])
 app.trabalhador_ativo = True
 app._trabalhador_da_fila()
 t('enfileirada de novo e dessa vez deu certo: sai da lista', not any(i['url'] == url_h for i in pq.items))
+# ------------------------------------------------------------------ ✂ Editar disco: nomes do Discogs pelas tags
+# 12.19: disco gravado com "Track N" (Trio Samba): o editor busca a lista do Discogs pelo release gravado
+# nas tags e, quando o nº de pedaços bate, os nomes entram (marcados "confira") e vão pra pasta ao salvar
+from metadata_manager import gravar_tags, MetadataManager
+from tkinter import messagebox as _mb
+from tocador import TocadorFalso
+pasta_ts = os.path.join(base_app, 'Samba Trio - Samba Samba Samba (1964)')
+shutil.rmtree(pasta_ts, ignore_errors=True); os.makedirs(pasta_ts)
+for k in range(3):
+    wav = salvar(np.concatenate([musica(70 + 5 * k), silencio(1.5)]), f'refino_ts_{k}.wav')
+    mp3 = os.path.join(pasta_ts, f'{k + 1:02d} - Track {k + 1}.mp3')
+    subprocess.run([FFMPEG, '-loglevel', 'error', '-y', '-i', wav, '-c:a', 'libmp3lame', '-b:a', '128k', mp3], check=True)
+    gravar_tags(mp3, f'Track {k + 1}', 'Samba Trio', 'Samba Samba Samba', k + 1, 3, ano='1964')
+    MetadataManager().add_discogs_ids(mp3, release_id='5212192')
+pedidos = []
+app.catalogo = types.SimpleNamespace(faixas_do_release=lambda rid: pedidos.append(rid) or [
+    {'title': 'Samba Do Avião', 'duration': 0}, {'title': 'Garota De Ipanema', 'duration': 0},
+    {'title': 'Só Danço Samba', 'duration': 0}])
+app._tocador_teste = TocadorFalso()
+avisos_ts = []
+_mb.showinfo = lambda *a, **k: avisos_ts.append(a)
+_mb.showerror = lambda *a, **k: avisos_ts.append(('ERRO',) + a)
+app._janela_editor = None
+app.abrir_editor_pasta(pasta_ts)
+for _ in range(1200):
+    root.update(); time.sleep(0.02)
+    if getattr(app, '_janela_editor', None) is not None:
+        break
+je_ts = app._janela_editor
+t(f"Editar disco com \"Track N\": nomes do Discogs pelo release das tags ({je_ts.ed.nomes() if je_ts else None})",
+  je_ts is not None and pedidos == ['5212192'] and je_ts.ed.nomes() == ['Samba Do Avião', 'Garota De Ipanema',
+                                                                         'Só Danço Samba']
+  and je_ts.ed.fonte_dos_nomes() == EC.FONTE_DISCOGS_DAS_TAGS)
+je_ts.salvar()
+for _ in range(600):
+    root.update(); time.sleep(0.02)
+    if avisos_ts:
+        break
+from mutagen.id3 import ID3
+arqs_ts = sorted(glob.glob(os.path.join(pasta_ts, '*.mp3')))
+t(f"...salvar sem mexer nos cortes regrava a pasta com os nomes ({[os.path.basename(a) for a in arqs_ts]} {avisos_ts[-1:]})",
+  len(arqs_ts) == 3 and str(ID3(arqs_ts[1]).get('TIT2')) == 'Garota De Ipanema' and 'Samba Do Avião' in arqs_ts[0])
+
 # ------------------------------------------------------------------ tela do editor numa tela baixa
 # 12.19: numa tela de notebook (768 de altura, com a barra de tarefas) o "Salvar" ficava pra fora
 import tkinter as tk
