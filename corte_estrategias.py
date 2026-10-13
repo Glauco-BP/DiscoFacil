@@ -194,20 +194,28 @@ class SmartCutter(AnaliseDeAudio):
         # seja outro disco), e completar até o número dele inventa cortes.
         _faixas_cad = self.metadata.get('tracks', []) or []
         _n_alvo = 0 if any(segundos_da_faixa(t) > 0 for t in _faixas_cad) else len(_faixas_cad)
-        spaced = self._completar_com_quedas_relativas(spaced, _n_alvo)
 
         # Corte perto demais do fim deixaria um último pedaço vazio e
         # estragaria a comparação de contagem com o catálogo logo abaixo
-        # (Nico Assumpção 1981: 10 cortes contra 9 esperados).
+        # (Nico Assumpção 1981: 10 cortes contra 9 esperados). Sai ANTES de
+        # completar com as quedas de volume: senão a pausa do fim do vídeo
+        # ocupa a vaga de uma fronteira de verdade e o disco fica com uma
+        # faixa a menos (12.19: Os Cobras, Juarez Araújo, Os Seis em Ponto).
         try:
             _total = self._get_total_audio_duration() or 0
         except Exception:
             _total = 0
-        while spaced and _total > 0 and _total - spaced[-1]['position'] < CutTuning.ULTIMO_PEDACO_MIN_SEC:
-            _ult = spaced.pop()
-            self._log(f"   ✂️  Descartando o corte em {_ult['position']/60:.1f}min: deixaria só "
-                      f"{_total - _ult['position']:.1f}s no fim (não é faixa)")
-        
+
+        def _tirar_corte_do_fim(lista):
+            while lista and _total > 0 and _total - lista[-1]['position'] < CutTuning.ULTIMO_PEDACO_MIN_SEC:
+                _ult = lista.pop()
+                self._log(f"   ✂️  Descartando o corte em {_ult['position']/60:.1f}min: deixaria só "
+                          f"{_total - _ult['position']:.1f}s no fim (não é faixa)")
+            return lista
+
+        spaced = _tirar_corte_do_fim(spaced)
+        spaced = _tirar_corte_do_fim(self._completar_com_quedas_relativas(spaced, _n_alvo))
+
         # Com o nº de músicas conhecido, pedaço curto é pausa dentro de uma
         # música, não faixa: fica o corte mais forte de cada par.
         if _faixas_cad:

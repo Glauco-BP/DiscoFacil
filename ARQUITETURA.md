@@ -115,7 +115,7 @@ tentativas de corte do álbum (`corte_audio.medidas_do_arquivo`).
 | `acervo_index.py` | Índice do que já está no disco (dedupe por master/release). |
 | `fila_unica.py` | A fila de trabalho, persistente. |
 | `pending_queue.py` | A lista "Precisam de você", persistente. |
-| `edicao_cortes.py` | Áudio guardado das pendências (`.audios_pasta_pendencia`) e as medidas dele (`_medidas/<id>.npz`); a edição dos cortes (`Edicao`: marcas com as faixas que começam nelas, nomes que acompanham os cortes, guias do Discogs, mudanças no som, candidatos de nome, tempos `#exato`); ler/juntar/regravar a pasta de um disco já cortado; o arquivo de correções (`logs/correcoes_do_editor.txt`). |
+| `edicao_cortes.py` | Áudio guardado das pendências (`.audios_pasta_pendencia`) e as medidas dele (`_medidas/<id>.npz`); a edição dos cortes (`Edicao`: marcas com as faixas que começam nelas, nomes que acompanham os cortes, guias do Discogs, mudanças no som, candidatos de nome, tempos `#exato`); ler/juntar/regravar a pasta de um disco já cortado; o arquivo de correções (`logs/correcoes_do_editor.txt`) e as medidas de cada disco editado (`logs/medidas_do_editor/*.npz`, pra análise); nomes automáticos de uma lista sugerida quando o nº de pedaços bate (`_lista_que_bate`). |
 | `registro.py` | Arquivo de log por rodada (chaves sempre mascaradas). |
 | `config.py` | `config.json` (pasta de saída, chaves, ajustes); converte o formato antigo guardando `config.json.antigo`. |
 | `util.py` | `sanitize`, `segundos_da_faixa`, `onde_quebrou`. |
@@ -139,7 +139,7 @@ tentativas de corte do álbum (`corte_audio.medidas_do_arquivo`).
 | o que vai pro arquivo de log | `registro.py` e as chamadas `self._reg(...)` |
 | a tela "Conferir cortes" (botões, cores, teclas) | `janela_editor.py`; as regras das marcas em `edicao_cortes.Edicao` |
 | a sugestão roxa (mudança no som) | `edicao_cortes.medir_audio` / `mudancas_no_som` (`SOM_*`) |
-| o que vai pro arquivo de correções | `edicao_cortes.registro_de_correcoes` |
+| o que vai pro arquivo de correções | `edicao_cortes.registro_de_correcoes` (e `guardar_medidas_da_edicao`) |
 
 ## Regras que valem em todo o código
 

@@ -210,6 +210,22 @@ class PendingQueue:
             self.save()
             return item
 
+    def anotar_falha(self, url: str, motivo: str = '') -> Optional[Dict]:
+        """
+        A nova tentativa (Corrigir busca, Enfileirar, cortes do editor...) não deu certo: o item
+        continua aqui, com o motivo novo, pra você decidir de novo (12.19 - antes saía da lista).
+        """
+        with self._trava:
+            item = next((i for i in self.items if i.get('url') == url), None)
+            if not item:
+                return None
+            quando = time.strftime('%d/%m %H:%M')
+            detalhe = f": {motivo}" if motivo else ""
+            item.update({'reason': f"Tentou de novo em {quando} e não deu{detalhe}",
+                         'ultima_tentativa': time.strftime('%Y-%m-%d %H:%M:%S')})
+            self.save()
+            return item
+
     def remove(self, item_id: str) -> None:
         with self._trava:
             self.items = [i for i in self.items if i['id'] != item_id]

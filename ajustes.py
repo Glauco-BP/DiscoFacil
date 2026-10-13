@@ -60,6 +60,11 @@ class CutTuning:
     # é pausa dentro da música (Ray Charles "Forever": queda 30s depois de um
     # silêncio de verdade virou um "Track 7" de 34s com o começo da faixa 8).
     QUEDA_REL_PEDACO_MIN_COM_N_SEC = 60.0
+    # Com o nº de faixas do cadastro, a queda só completa um corte dentro de um pedaço comprido
+    # demais pra ser uma música só: mais que isto x a duração média esperada (duração total / nº
+    # de faixas). 12.19: com as medidas reais, a queda mais funda do disco podia estar no meio de
+    # uma música de tamanho normal (Os Cobras 9:49, Ed Lincoln 1:30) e trocava os nomes dali pra frente.
+    QUEDA_REL_PEDACO_LONGO_FATOR = 1.5
     # Piso: nunca cortar antes disso a partir do início do silêncio (em
     # silêncio curtíssimo, fim - 0,5s cairia antes do próprio começo).
     SILENCE_CUT_MIN_OFFSET_SEC = 0.2

@@ -13,6 +13,7 @@ import nomes
 from util import sanitize
 
 LIMITE_NOME_PASTA = 200      # o Windows aceita 260 caracteres no caminho inteiro
+LIMITE_ARTISTA_PASTA = 100   # o artista também é cortado (12.19: uma lista de faixas colada no campo do artista)
 TENTATIVAS_DOWNLOAD = 3
 
 
@@ -24,13 +25,14 @@ def limpar_nome(nome: str) -> str:
 
 
 def nome_da_pasta(artista: str, album: str, ano=None) -> str:
-    """'Artista - Álbum (Ano)', sem o ' (N)' do Discogs; corta o álbum se passar do limite."""
-    art = limpar_nome(nomes.nome_artista_exibicao(artista))
-    alb = limpar_nome(album)
+    """'Artista - Álbum (Ano)', sem o ' (N)' do Discogs; corta o artista e o álbum se passarem do limite."""
+    art = ' '.join(limpar_nome(nomes.nome_artista_exibicao(artista) or '').split())[:LIMITE_ARTISTA_PASTA].strip()
+    alb = ' '.join(limpar_nome(album or '').split())
     sufixo = f" ({ano})" if ano else ""
     if len(art) + 3 + len(alb) + len(sufixo) > LIMITE_NOME_PASTA:
         alb = alb[:max(0, LIMITE_NOME_PASTA - len(art) - 3 - len(sufixo))]
-    return sanitize(f"{art} - {alb}{sufixo}")
+    # o Windows não aceita nome terminado em ponto ou espaço (o corte pode deixar um)
+    return sanitize(f"{art.rstrip(' .')} - {alb.rstrip(' .')}{sufixo}").rstrip(' .')
 
 
 def baixar_audio(downloader, url, pasta, log, tamanho_minimo):

@@ -315,6 +315,21 @@ def silencios_dos_gaps(clusters) -> List[tuple]:
 
 
 # ------------------------------------------------------------------ o estado da edição
+# ✂ Editar disco: o release do Discogs gravado nas tags do disco (é o disco certo: o programa o
+# identificou) - dá os nomes de um disco que saiu com "Track N" (12.19)
+FONTE_DISCOGS_DAS_TAGS = 'Discogs (pelas tags do disco)'
+# Listas sugeridas que podem dar os nomes sozinhas quando o nº de pedaços bate (disco sem Discogs
+# confirmado), na ordem de preferência: só as do próprio vídeo (são deste disco). O palpite do
+# Discogs não: pode ser outro disco que por acaso tem o mesmo nº de músicas que os pedaços achados
+# (ex.: 7 pedaços de um disco de 10, com 3 trocas sem pausa, e um palpite de 7 faixas). Ele e os
+# "colados" (que já viraram nomes) só aparecem no duplo clique.
+FONTES_PREFERIDAS = ('capítulos do vídeo', 'descrição do vídeo', 'comentário do vídeo', FONTE_DISCOGS_DAS_TAGS)
+
+
+def _ordem_da_fonte(fonte) -> int:
+    return FONTES_PREFERIDAS.index(fonte)
+
+
 class Edicao:
     """
     oficiais: faixas do Discogs [{'title', 'duration'(s ou 'M:SS')}] (pode ser vazio);
@@ -350,7 +365,9 @@ class Edicao:
         self.nomes_editados: Dict[int, str] = {}
         self._nomes_guardados: Dict[tuple, str] = {}  # nome editado de um pedaço que foi juntado a outro
         self.candidatos: Dict[str, List[str]] = {}    # fonte -> nomes (sugestões no duplo clique)
+        self.fonte_da_identidade: Optional[str] = None  # lista sugerida que deu os nomes (None: Discogs/arquivos)
         self.sugestao_inicial = None
+        self.gaps = None                              # silêncios achados pelo detector (pras medidas da análise)
         self.mudou = False
 
     # --- carga
@@ -369,6 +386,7 @@ class Edicao:
         meta = {'tracks': [{'title': o['title'], 'duration': o['duracao']} for o in self.oficiais], 'title': self.titulo}
         ac = AlbumCutter('', self.titulo, self.arquivo, meta, str(Path(self.arquivo).parent), log_func=quieto)
         gaps = guardado.get('gaps') or ac.detect_gaps()
+        self.gaps = gaps
         if medidas:
             gravar_medidas(medidas, self.arquivo, envelope=self.envelope, sugestoes=self.sugestoes_som, gaps=gaps)
         sc = SmartCutter(meta, gaps, self.arquivo, log_func=quieto)
@@ -389,7 +407,7 @@ class Edicao:
     def rotular(self):
         """Dá a cada marca a faixa que começa nela (quando se sabe os nomes de todos os pedaços) e
         guarda a sugestão inicial (pro arquivo de correções)."""
-        self.nomes_base, self.faixas_inicio = None, None
+        self.nomes_base, self.faixas_inicio, self.fonte_da_identidade = None, None, None
         for m in self.marcas:
             m.pop('faixas', None)
         self._ligar_identidade()
@@ -399,16 +417,17 @@ class Edicao:
 
     def _ligar_identidade(self) -> bool:
         """Os nomes passam a acompanhar os cortes assim que o nº de pedaços bate com o Discogs (ou com
-        os arquivos de antes) - na abertura ou depois, quando você marca o corte que faltava."""
+        os arquivos de antes) - na abertura ou depois, quando você marca o corte que faltava. Os de uma
+        lista sugerida não: valem pela ordem enquanto o nº de pedaços bater (ver nomes_automaticos)."""
         if self._identidade():
             return True
         n = len(self.marcas) + 1
-        if self.oficiais and len(self.oficiais) == n:
-            self.nomes_base = [o['title'] for o in self.oficiais]
-        elif self.nomes_fixos and len(self.nomes_fixos) == n:
-            self.nomes_base = list(self.nomes_fixos)
-        else:
+        lista, fonte = self._lista_que_bate(n)
+        if lista is None or fonte is not None:
+            # lista sugerida (vídeo, Discogs das tags): só pela ordem, sem acompanhar os cortes (12.19,
+            # Trio Marayá: presos num momento intermediário da edição, os nomes ficaram fora do lugar)
             return False
+        self.nomes_base, self.fonte_da_identidade = list(lista), fonte
         self.faixas_inicio = [0]
         for k, m in enumerate(self.marcas):
             m['faixas'] = [k + 1]
@@ -522,17 +541,43 @@ class Edicao:
             nomes.append(' / '.join(partes))
         return nomes
 
-    def nomes(self) -> List[str]:
+    def _lista_que_bate(self, n) -> tuple:
+        """(nomes, fonte) da primeira lista com n nomes: o Discogs confirmado, os arquivos de antes e,
+        sem nenhum dos dois, as listas do próprio vídeo (capítulos, descrição, comentário).
+        (None, None) se nenhuma bate."""
+        if self.oficiais and len(self.oficiais) == n:
+            return [o['title'] for o in self.oficiais], None
+        if self.nomes_fixos and len(self.nomes_fixos) == n and not self._nomes_fixos_genericos():
+            return list(self.nomes_fixos), None
+        if not self.oficiais:
+            for fonte in sorted((f for f in self.candidatos if f in FONTES_PREFERIDAS), key=_ordem_da_fonte):
+                if len(self.candidatos[fonte]) == n:
+                    return list(self.candidatos[fonte]), fonte
+        return None, None
+
+    def _nomes_fixos_genericos(self) -> bool:
+        """Disco já cortado com "Track 1", "Track 2"...: esses nomes não são de verdade e dão lugar a
+        uma lista sugerida que bata (o Discogs das tags)."""
+        return bool(self.nomes_fixos) and all(re.fullmatch(r'Track \d+', n or '') for n in self.nomes_fixos)
+
+    def nomes_automaticos(self) -> List[str]:
+        """Os nomes que o programa põe em cada pedaço (sem os que você escreveu)."""
         n = len(self.marcas) + 1
         if self._identidade():
-            base = self._nomes_por_identidade()
-        elif self.oficiais and len(self.oficiais) == n:
-            base = [o['title'] for o in self.oficiais]
-        elif self.nomes_fixos and len(self.nomes_fixos) == n:
-            base = list(self.nomes_fixos)
-        else:
-            base = [f'Track {i + 1}' for i in range(n)]
-        return [self.nomes_editados.get(i, base[i]) for i in range(n)]
+            return self._nomes_por_identidade()
+        lista, _ = self._lista_que_bate(n)
+        return list(lista) if lista is not None else [f'Track {i + 1}' for i in range(n)]
+
+    def fonte_dos_nomes(self) -> Optional[str]:
+        """De que lista do vídeo vieram os nomes automáticos ("descrição do vídeo"...) - None quando
+        vêm do Discogs confirmado, dos arquivos de antes ou são "Track N"."""
+        if self._identidade():
+            return self.fonte_da_identidade
+        return self._lista_que_bate(len(self.marcas) + 1)[1]
+
+    def nomes(self) -> List[str]:
+        base = self.nomes_automaticos()
+        return [self.nomes_editados.get(i, base[i]) for i in range(len(base))]
 
     def duracoes_oficiais(self) -> List[float]:
         n = len(self.marcas) + 1
@@ -989,17 +1034,33 @@ def registro_de_correcoes(ed: Edicao, extra: Optional[Dict] = None) -> Dict:
     for j, b in enumerate(fim):
         if j not in usados_f:
             cortes.append(dict(acao='novo', final=b['pos'], **ambiente(b['pos'])))
-    nomes_sug = (ed.sugestao_inicial or {}).get('nomes') or []
+    # 12.19: os nomes trocados comparam com o que o programa mostrava em cada pedaço NA HORA DE SALVAR
+    # (depois dos seus cortes), não na abertura - senão um nome que apareceu sozinho quando o nº de
+    # pedaços passou a bater contava como "trocado por você"
+    nomes_auto = ed.nomes_automaticos()
     nomes_fim = ed.nomes()
-    trocados = [{'faixa': i + 1, 'sugerido': nomes_sug[i] if i < len(nomes_sug) else None, 'final': n}
-                for i, n in enumerate(nomes_fim) if i >= len(nomes_sug) or nomes_sug[i] != n]
+    trocados = [{'faixa': i + 1, 'sugerido': nomes_auto[i] if i < len(nomes_auto) else None, 'final': n}
+                for i, n in enumerate(nomes_fim) if i >= len(nomes_auto) or nomes_auto[i] != n]
+    genericos = [n for n in nomes_auto if re.fullmatch(r'Track \d+', n)]
     r = {'data': time.strftime('%Y-%m-%d %H:%M:%S'), 'origem': ed.origem, 'disco': ed.titulo,
          'duracao_s': round(ed.duracao, 1), 'faixas_discogs': len(ed.oficiais),
          'durações_discogs': bool(guias), 'pecas_sugeridas': len(sug) + 1, 'pecas_finais': len(fim) + 1,
          'pausas_no_disco': len(ed.silencios), 'mudancas_no_som': len(ed.sugestoes_som),
-         'cortes': cortes, 'nomes_trocados': trocados}
+         'cortes': cortes, 'nomes_trocados': trocados,
+         'nomes_da_abertura': (ed.sugestao_inicial or {}).get('nomes') or [],
+         'fonte_dos_nomes': ed.fonte_dos_nomes() or (_fonte_fixa(ed) if len(genericos) < len(nomes_auto) else None),
+         'nomes_automaticos_mantidos': sum(1 for a, n in zip(nomes_auto, nomes_fim)
+                                           if a == n and not re.fullmatch(r'Track \d+', a))}
     r.update(extra or {})
     return r
+
+
+def _fonte_fixa(ed: Edicao) -> str:
+    """De onde vieram os nomes que não são de lista sugerida: o Discogs confirmado, os tempos do vídeo
+    (capítulos/comentário, que também dão os cortes) ou os arquivos do disco já cortado."""
+    if ed.oficiais and len(ed.oficiais) == len(ed.marcas) + 1:
+        return 'Discogs'
+    return getattr(ed, 'fonte_dos_cortes', None) or ('nomes de antes' if ed.origem == 'pasta' else 'lista fixa')
 
 
 def _arred(x):
@@ -1019,6 +1080,53 @@ def gravar_correcao(base, registro) -> bool:
         return False
 
 
+# ------------------------------------------------------------------ medidas dos discos editados (pra análise)
+PASTA_MEDIDAS_EDITOR = 'medidas_do_editor'
+
+
+def caminho_medidas_editor(base) -> Path:
+    return Path(base) / 'logs' / PASTA_MEDIDAS_EDITOR
+
+
+def guardar_medidas_da_edicao(base, ed: Edicao, chave) -> Optional[str]:
+    """
+    O "desenho do volume" do disco editado e onde ficaram os cortes, em
+    logs/medidas_do_editor/<data>_<chave>.npz (uns 100 KB): o volume em dB a cada
+    ENVELOPE_PASSO_SEC, os silêncios do detector, as mudanças no som, os cortes
+    sugeridos e os finais. Não dá pra ouvir nem refazer a música com isso - serve só
+    pra testar ajustes do corte automático com os discos que você corrigiu.
+    Devolve o nome do arquivo (ou None se não deu).
+    """
+    import json
+    import numpy as np
+    try:
+        if ed.envelope is None or not len(ed.envelope):
+            return None
+        pasta = caminho_medidas_editor(base)
+        pasta.mkdir(parents=True, exist_ok=True)
+        nome = f"{time.strftime('%Y%m%d-%H%M%S')}_{re.sub(r'[^A-Za-z0-9_-]+', '_', str(chave))[:60]}.npz"
+        db = 20.0 * np.log10(np.maximum(np.asarray(ed.envelope, dtype=np.float64), 1e-6))
+        dados = {
+            'volume_db': db.astype(np.float16),
+            'passo_s': np.array(ENVELOPE_PASSO_SEC),
+            'duracao_s': np.array(ed.duracao),
+            'gaps': np.array(json.dumps(ed.gaps or {}, default=float)),
+            'silencios': np.asarray([[a, b, float(v or 0)] for a, b, v in ed.silencios] or np.zeros((0, 3)),
+                                    dtype=np.float64),
+            'mudancas_no_som': np.asarray(ed.sugestoes_som, dtype=np.float64),
+            'cortes_sugeridos': np.array(json.dumps((ed.sugestao_inicial or {}).get('marcas') or [])),
+            'cortes_finais': np.array(json.dumps([{'pos': round(m['pos'], 3), 'tipo': m['tipo']} for m in ed.marcas])),
+            'faixas_discogs': np.array(len(ed.oficiais)),
+            'disco': np.array(str(ed.titulo)),
+        }
+        tmp_ = pasta / (nome[:-4] + '.tmp.npz')
+        np.savez_compressed(str(tmp_), **dados)
+        os.replace(tmp_, pasta / nome)
+        return nome
+    except Exception:
+        return None
+
+
 def resumo_correcoes(base, ultimas=50) -> Optional[str]:
     """ "Nas últimas N edições, X% dos cortes sugeridos ficaram onde estavam" (None sem registros)."""
     import json
@@ -1029,9 +1137,11 @@ def resumo_correcoes(base, ultimas=50) -> Optional[str]:
     regs = []
     for l in linhas:
         try:
-            regs.append(json.loads(l))
+            r = json.loads(l)
         except ValueError:
-            pass
+            continue
+        if not r.get('sem_mudanca'):          # disco aberto e salvo sem mudar nada: só guardou as medidas
+            regs.append(r)
     sug = [c for r in regs for c in r.get('cortes', []) if c.get('acao') != 'novo']
     if not regs or not sug:
         return None

@@ -552,8 +552,10 @@ class AnaliseDeAudio:
 
         Só age dentro de trechos que não cabem numa faixa só:
           - com número de faixas conhecido (Discogs sem durações): completa
-            até esse número, pelas quedas mais fundas, sem deixar pedaço
-            menor que QUEDA_REL_PEDACO_MIN_COM_N_SEC;
+            até esse número, pelas quedas mais fundas, só dentro de pedaços
+            compridos demais pra uma música (QUEDA_REL_PEDACO_LONGO_FATOR x a
+            duração média esperada) e sem deixar pedaço menor que
+            QUEDA_REL_PEDACO_MIN_COM_N_SEC;
           - sem número conhecido: divide trechos com mais de 5 min (ou 60%
             acima do comprimento típico do disco), pela queda mais funda,
             sem deixar pedaço menor que 90s.
@@ -588,10 +590,17 @@ class AnaliseDeAudio:
             # sem o número de faixas, só quedas bem fundas
             quedas = [q for q in quedas if q['profundidade'] >= CutTuning.QUEDA_REL_PROFUNDA_DB]
         if alvo and len(resultado) < alvo:
+            # só dentro de um pedaço comprido demais pra uma música (ver QUEDA_REL_PEDACO_LONGO_FATOR)
+            longo = CutTuning.QUEDA_REL_PEDACO_LONGO_FATOR * total / (alvo + 1)
+
+            def no_pedaco_longo(pos):
+                pontos = [0.0] + [g['position'] for g in resultado] + [total]
+                return any(a < pos < b and b - a > longo for a, b in zip(pontos, pontos[1:]))
             for q in sorted(quedas, key=lambda q: -q['profundidade']):
                 if len(resultado) >= alvo:
                     break
-                if cabe(q['posicao'], resultado, max(esp, CutTuning.QUEDA_REL_PEDACO_MIN_COM_N_SEC)):
+                if cabe(q['posicao'], resultado, max(esp, CutTuning.QUEDA_REL_PEDACO_MIN_COM_N_SEC)) \
+                        and no_pedaco_longo(q['posicao']):
                     g = novo_gap(q)
                     resultado.append(g); usadas.append(q)
                     resultado.sort(key=lambda g: g['position'])

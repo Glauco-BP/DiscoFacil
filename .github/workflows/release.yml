@@ -14,9 +14,9 @@ jobs:
   exe:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -50,14 +50,14 @@ jobs:
           "ZIP=DiscoFacil_${versao}_Windows_64bits.zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Guardar o zip (aparece na execução, em Actions)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: DiscoFacil-windows
           path: ${{ env.ZIP }}
 
       - name: Publicar em Releases
         if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: ${{ env.ZIP }}
           body_path: NOTAS_DA_VERSAO.md

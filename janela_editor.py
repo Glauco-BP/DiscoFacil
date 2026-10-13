@@ -24,6 +24,9 @@ GUIA = "#EAB308"              # onde o Discogs poria o corte (pela soma das dura
 GUIA_TEXTO = "#A16207"
 SOM = "#7C3AED"               # possível troca de música sem pausa (mudança no som)
 COR_TIPO = {'silencio': Cores.COLOR_ACCENT, 'estimado': Cores.COLOR_WARNING, 'usuario': USUARIO}
+JANELA_LARG, JANELA_ALT = 1360, 760            # tamanho preferido da tela
+JANELA_LARG_MIN, JANELA_ALT_MIN = 1320, 680    # a linha de botões inteira + a tabela (se a tela couber)
+JANELA_FOLGA_VERTICAL = 90                     # barra de tarefas do Windows + barra de título da janela
 NOME_TIPO = {'silencio': 'silêncio', 'estimado': 'estimado - conferir', 'usuario': 'marcado por você'}
 VISTA_INICIAL_SEC = 600.0
 VISTA_MIN_SEC = 10.0
@@ -54,8 +57,7 @@ class JanelaEditor(Cores):
         w = self.win = tk.Toplevel(pai)
         w.title(f"{titulo_janela} - {edicao.titulo}"[:120])
         w.configure(bg=self.COLOR_BG)
-        w.geometry("1360x760")
-        w.minsize(1320, 680)         # a linha de botões inteira + a tabela
+        self._posicionar()
         w.protocol("WM_DELETE_WINDOW", self.fechar)
         self._montar(texto_salvar, explicacao_salvar or (
             "Os cortes salvos valem como \"tempos informados\": o disco vai pra fila e é cortado "
@@ -64,6 +66,20 @@ class JanelaEditor(Cores):
         self._ir_ao_primeiro_problema()
         w.after(50, self.redesenhar)
         self._id_tique = w.after(TIQUE_MS, self._tique)
+
+    def _posicionar(self):
+        """Abre no alto da tela e nunca mais alta que ela (12.19: numa tela de notebook os botões de
+        baixo, "Salvar", ficavam pra fora). O rodapé é montado primeiro: com a janela baixa, quem
+        encolhe é o desenho, não os botões."""
+        w = self.win
+        try:
+            larg_tela, alt_tela = int(w.winfo_screenwidth()), int(w.winfo_screenheight())
+        except Exception:
+            larg_tela, alt_tela = 1920, 1080
+        larg = max(800, min(JANELA_LARG, larg_tela - 16))
+        alt = max(480, min(JANELA_ALT, alt_tela - JANELA_FOLGA_VERTICAL))
+        w.geometry(f"{larg}x{alt}+{max(0, (larg_tela - larg) // 2)}+0")
+        w.minsize(min(JANELA_LARG_MIN, larg), min(JANELA_ALT_MIN, alt))   # a linha de botões inteira + a tabela
 
     # ================================================================== montagem
     def _botao(self, pai, texto, cmd, primario=False, cor=None, destaque=None):
@@ -433,6 +449,12 @@ class JanelaEditor(Cores):
                         f"Faixas {nums}{' ...' if len(est) > 4 else ''}: sem silêncio perto. Use \"◀ marca / "
                         f"marca ▶\" e \"🎧 Ouvir a emenda\"; se estiver certo, não precisa fazer nada.")
             partes.append(f"{len(est)} estimado{'s' if len(est) > 1 else ''} pra conferir")
+        fonte = self.ed.fonte_dos_nomes()
+        if fonte and any(n == a for n, a in zip(self.ed.nomes(), self.ed.nomes_automaticos())):
+            self._caixa("#FFFBEB", "#FDE68A", self.COLOR_WARNING, f"⚠  Nomes: {fonte} - confira",
+                        f"Os nomes vieram da lista \"{fonte}\" porque o nº de músicas dela bate com o de pedaços. "
+                        f"Confira antes de salvar (duplo clique no nome pra trocar).")
+            partes.append("nomes a conferir")
         if not partes:
             self._caixa("#F0FDF4", "#BBF7D0", self.COLOR_SUCCESS, "✓  Tudo confirmado",
                         "Todos os cortes estão em silêncios ou foram marcados por você.")
