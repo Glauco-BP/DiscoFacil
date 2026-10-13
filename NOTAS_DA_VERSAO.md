@@ -2,6 +2,8 @@
 
 Baixe o **`DiscoFacil_12.19_Windows_64bits.zip`** abaixo (em Assets; os "Source code" são só o código), descompacte e abra o `DiscoFacil.exe`. O tutorial em PDF vem junto. Só para Windows 64 bits.
 
+> **Aviso "Editor desconhecido" / "O Windows protegeu o computador":** é normal na primeira vez que se abre uma versão nova (o programa não tem assinatura digital paga). Clique em **Mais informações → Executar assim mesmo**. Ou, antes de descompactar: botão direito no zip → **Propriedades** → marque **Desbloquear** → OK.
+
 **Primeira rodada de ajustes com as correções feitas no ✂ Editar**
 - **"Falta 1 faixa" corrigido:** em discos sem durações no Discogs, a pausa do fim do vídeo ocupava a vaga de uma faixa e o disco ia para "Precisam de você" com uma faixa a menos (ex.: Juarez Araújo). Conferido com as medidas de discos reais: na dúvida, o disco continua indo para "Precisam de você".
 - **Nomes automáticos no editor:** em disco não confirmado, se os capítulos, a descrição ou um comentário do vídeo têm o mesmo nº de músicas que os pedaços, os nomes entram sozinhos (com o aviso "confira").
