@@ -1601,7 +1601,7 @@ No "Antônio Adolfo - Nó Em Pingo Dágua", a lista de faixas de outro disco foi
 Em 25 das 43 edições os nomes ficaram "Track N" e você escolheu um por um no duplo clique. Agora, quando o disco não está confirmado no Discogs e uma lista do próprio vídeo (capítulos, descrição, comentário) tem o mesmo nº de músicas que os pedaços, os nomes entram sozinhos:
 - o palpite do Discogs **não** entra sozinho, só no duplo clique. Conferindo a tela, apareceu o risco: um disco de 10 músicas com 3 trocas sem pausa abre com 7 pedaços, e um palpite errado de 7 faixas "batia" (nomes errados com cara de certos);
 - isso vale na abertura e também depois, quando você marca o corte que faltava;
-- daí em diante os nomes acompanham os cortes, como os do Discogs;
+- os nomes valem **pela ordem** enquanto o nº de pedaços bater, e não acompanham os cortes. No Trio Marayá (reeditado em 12/10), os nomes ficaram presos num momento intermediário da edição (apagar, marcar de novo, apagar outro) e saíram fora do lugar ("Canto de Ossanha / Lindo, Lindo"). Os nomes do Discogs confirmado continuam acompanhando os cortes;
 - a tela avisa "⚠ Nomes da descrição do vídeo: confira".
 
 O Discogs confirmado continua tendo prioridade: com ele, as outras listas só aparecem no duplo clique.
@@ -1642,7 +1642,7 @@ Com 1 de diferença e sem pedaço comprido, sai com "Track N" como antes, sem no
 
 ### EP. ✂ Editar disco: os nomes do Discogs pelo release gravado nas tags
 
-Um disco gravado com "Track N" não tinha de onde tirar os nomes no ✂ Editar disco (só "Colar nomes"). Agora o editor lê nas tags o release do Discogs que o programa gravou e busca a lista de músicas dele. Quando o nº de pedaços bate (na abertura ou depois que você marca os cortes que faltavam), os nomes entram com o aviso "⚠ Nomes: Discogs (pelas tags do disco) - confira" e vão para os arquivos ao salvar. Isso vale mesmo que você não tenha mexido nos cortes: trocar só os nomes também regrava a pasta. Sem conexão ou sem chave do Discogs, o editor abre do mesmo jeito.
+Um disco gravado com "Track N" não tinha de onde tirar os nomes no ✂ Editar disco (só "Colar nomes"). Agora o editor lê nas tags o release do Discogs que o programa gravou e busca a lista de músicas dele. Quando o nº de pedaços bate (na abertura ou depois que você marca os cortes que faltavam), os nomes entram pela ordem com o aviso "⚠ Nomes: Discogs (pelas tags do disco) - confira" e vão para os arquivos ao salvar. No teste de 12/10, o Samba Trio e o Sambossa 5 (7 pedaços para 12 músicas) saíram com os 12 nomes certos depois de você marcar os 5 cortes que faltavam. Isso vale mesmo que você não tenha mexido nos cortes: trocar só os nomes também regrava a pasta. Sem conexão ou sem chave do Discogs, o editor abre do mesmo jeito.
 
 O arquivo de correções também passa a dizer de onde vieram os nomes (`fonte_dos_nomes`): "Discogs", "capítulos do vídeo", "nomes de antes"... Antes, os nomes que vinham dos capítulos apareciam como "Discogs/arquivos".
 

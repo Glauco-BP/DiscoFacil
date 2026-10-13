@@ -417,13 +417,15 @@ class Edicao:
 
     def _ligar_identidade(self) -> bool:
         """Os nomes passam a acompanhar os cortes assim que o nº de pedaços bate com o Discogs (ou com
-        os arquivos de antes, ou com uma das listas sugeridas) - na abertura ou depois, quando você
-        marca o corte que faltava."""
+        os arquivos de antes) - na abertura ou depois, quando você marca o corte que faltava. Os de uma
+        lista sugerida não: valem pela ordem enquanto o nº de pedaços bater (ver nomes_automaticos)."""
         if self._identidade():
             return True
         n = len(self.marcas) + 1
         lista, fonte = self._lista_que_bate(n)
-        if lista is None:
+        if lista is None or fonte is not None:
+            # lista sugerida (vídeo, Discogs das tags): só pela ordem, sem acompanhar os cortes (12.19,
+            # Trio Marayá: presos num momento intermediário da edição, os nomes ficaram fora do lugar)
             return False
         self.nomes_base, self.fonte_da_identidade = list(lista), fonte
         self.faixas_inicio = [0]

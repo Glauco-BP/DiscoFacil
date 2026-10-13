@@ -170,7 +170,22 @@ ed.marcar(1660.0); ed.marcar(1730.0)
 t(f'...você marca os 2 cortes que faltavam: os nomes aparecem sozinhos ({ed.nomes()[-1]})',
   len(ed.marcas) == 11 and ed.nomes() == DESC)
 ed.marcar(60.0)
-t(f'...e acompanham os cortes depois disso ({ed.nomes()[:2]})', ed.nomes()[:2] == ['Desc 1', 'Desc 1 (2)'])
+t(f'...lista sugerida vale só pela ordem: com um corte a mais, voltam os "Track N" ({ed.nomes()[:2]})',
+  ed.nomes()[:2] == ['Track 1', 'Track 2'])
+ed.apagar(0)
+t('...e com o nº batendo de novo, os nomes voltam pela ordem', ed.nomes() == DESC)
+
+# Trio Marayá (12/10): 12 pedaços, Discogs (pelas tags) com 11. Você apaga um corte errado, marca de novo
+# e apaga o certo: os nomes não podem ficar presos no meio do caminho ("Canto de Ossanha / Lindo, Lindo")
+TM = [f'Marayá {k}' for k in range(1, 12)]
+ed = edicao_sem_audio(12)
+ed.adicionar_candidatos(EC.FONTE_DISCOGS_DAS_TAGS, TM)
+ed.rotular()
+ed.apagar(2)                                  # apaga o corte errado (11 pedaços: nomes pela ordem)
+ed.marcar(180.0 * 3)                          # arrependeu: marca de novo
+ed.apagar(5)                                  # apaga o certo
+t(f'Trio Marayá: depois de apagar, marcar de novo e apagar outro, os nomes ficam pela ordem ({ed.nomes()[5:7]})',
+  ed.nomes() == TM and ed.fonte_dos_nomes() == EC.FONTE_DISCOGS_DAS_TAGS)
 ed = edicao_sem_audio(11, oficiais=[{'title': f'Of {k}', 'duration': 0} for k in range(12)])
 ed.adicionar_candidatos('descrição do vídeo', [f'Desc {k}' for k in range(11)])
 ed.rotular()
