@@ -25,6 +25,7 @@ MOTIVOS = {
     'outro_disco': 'Talvez outro disco',
     'falha_download': 'Download falhou',
     'erro_discogs': 'Discogs não respondeu',
+    'track_n': 'Gravados com Track N',          # 12.21: já gravado; falta pôr os nomes (✂ Editar)
 }
 TODOS = 'Todos os motivos'
 COL_YT = '#5'          # coluna "▶ YouTube" (a 5ª de dados)
@@ -338,11 +339,13 @@ class JanelaPendentes:
             if self.acoes_desc.winfo_manager():
                 self.acoes_desc.pack_forget()
                 self.acoes_pend.pack(side='right')
-            self.b_enfileirar.config(text=f"➕ Enfileirar ({n})", state='normal' if n else 'disabled')
+            # "Gravados com Track N" já está gravado: não vai pra fila nem refaz a busca, só ✂ Editar
+            gravado = any(it.get('kind') == 'track_n' for it in sel)
+            self.b_enfileirar.config(text=f"➕ Enfileirar ({n})", state='normal' if n and not gravado else 'disabled')
             self.b_remover.config(text=f"🗑 Remover ({n})", state='normal' if n else 'disabled')
             self.b_buscar.config(state='normal' if n == 1 else 'disabled')
-            self.b_corrigir.config(state='normal' if n == 1 else 'disabled')
-            self.b_tempos.config(state='normal' if n == 1 else 'disabled')
+            self.b_corrigir.config(state='normal' if n == 1 and not gravado else 'disabled')
+            self.b_tempos.config(state='normal' if n == 1 and not gravado else 'disabled')
             self.b_editar.config(state='normal' if n == 1 and sel[0].get('source_type') != 'playlist'
                                  else 'disabled')
         self.b_motivo.config(state='normal' if n else 'disabled')
@@ -402,7 +405,7 @@ class JanelaPendentes:
 
     def enfileirar(self):
         """Manda os selecionados pra fila única (via app._enfileirar_pendencias)."""
-        sel = self.selecionados()
+        sel = [it for it in self.selecionados() if it.get('kind') != 'track_n']     # esses já estão gravados
         if not sel or self.vendo_descartados:
             return
         n = self.app._enfileirar_pendencias(sel)
@@ -570,6 +573,8 @@ class JanelaPendentes:
         sel = self.selecionados()
         if len(sel) != 1 or self.vendo_descartados:
             return None
+        if sel[0].get('kind') == 'track_n':
+            return self.app.abrir_editor_track_n(sel[0])       # o disco já gravado: ✂ Editar disco
         return self.app.abrir_editor_pendencia(sel[0])
 
     def informar_tempos(self, texto=None):

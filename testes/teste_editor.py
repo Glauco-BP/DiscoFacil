@@ -928,7 +928,27 @@ t(f'...mas guarda as medidas do disco com os cortes de agora ({ult.get("medidas"
 # 12.21: 🗑 Apagar pedaço também no ✂ Editar disco (a faixa 3 sai e as de depois andam uma casa)
 antes_ap = [str(ID3(str(p_)).get('TIT2')) for p_ in sorted(pasta.glob('*.mp3'))]
 avisos_mb.clear(); app._janela_editor = None
-app.abrir_editor_pasta(str(pasta))
+# ...aberto pelo lembrete "Gravados com Track N" de "Precisam de você" (12.21)
+pq.add(kind='falha_corte', url='https://youtu.be/TrackNNNNNN', video_title='Outro disco', reason='x')
+it_tn = pq.anotar_track_n('https://youtu.be/TrackNNNNNN', 'Ray Charles - Ingredients (FULL ALBUM)', str(pasta), 9, 9,
+                          title_artist='Ray Charles', title_album='Ingredients')
+t('Gravados com Track N: convive com a pendência do mesmo vídeo e diz quantas faixas estão sem nome',
+  len([i for i in pq.items if i['url'] == 'https://youtu.be/TrackNNNNNN']) == 2 and '9 de 9' in it_tn['reason'])
+app._tirar_das_pendencias('https://youtu.be/TrackNNNNNN', 'teste')
+t('...quando o vídeo fica pronto fora da fila, o lembrete continua (só a pendência sai)',
+  [i['kind'] for i in pq.items if i['url'] == 'https://youtu.be/TrackNNNNNN'] == ['track_n'])
+J.recarregar(); esperar2(0.3)
+t(f'...é um filtro em "Precisam de você" ({[v_ for v_ in J.combo["values"] if "Track" in v_]})',
+  'Gravados com Track N (1)' in J.combo['values'])
+J.filtro.set('Gravados com Track N (1)'); J.recarregar(); esperar2(0.2)
+J.tree.selection_set(it_tn['id']); esperar2(0.2)
+t('...só ele na lista; ✂ Editar ligado, Enfileirar / Corrigir busca / Informar tempos desligados (já está gravado)',
+  list(J.tree.get_children()) == [it_tn['id']] and str(J.b_editar.cget('state')) == 'normal'
+  and str(J.b_enfileirar.cget('state')) == 'disabled' and str(J.b_corrigir.cget('state')) == 'disabled'
+  and str(J.b_tempos.cget('state')) == 'disabled')
+t('...e nem pelo código ele vai pra fila', app._enfileirar_pendencias([it_tn]) == 0
+  and not app.fila.por_url('https://youtu.be/TrackNNNNNN'))
+J.editar()
 for _ in range(1600):
     esperar2(0.05)
     if getattr(app, '_janela_editor', None) is not None:
@@ -956,5 +976,7 @@ t(f'...salvar: a pasta fica com {len(depois_ap)} faixas, sem a apagada e numerad
   and depois_ap[2].name.startswith('03 - ') and str(ID3(str(depois_ap[-1])).get('TRCK')) == f'{len(depois_ap)}/{len(depois_ap)}')
 ult_ap = _json.loads(EC.caminho_correcoes(base_app).read_text(encoding='utf-8').splitlines()[-1])
 t('...e o arquivo de correções anota o pedaço apagado', [x_['faixa'] for x_ in ult_ap.get('pecas_apagadas') or []] == [3])
+t('Gravados com Track N: salvo no ✂ Editar disco, o lembrete sai da lista',
+  not any(i.get('kind') == 'track_n' for i in pq.items))
 root.destroy()
 fim()

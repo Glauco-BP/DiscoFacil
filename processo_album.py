@@ -23,6 +23,7 @@ dados_para_corte(); as faixas vão em 'M:SS' (a duração exata, quando
 existe, em 'duration_seconds').
 """
 import os
+import re
 import shutil
 import time
 from pathlib import Path
@@ -429,6 +430,7 @@ class AlbumMixin:
             edicao_cortes.esquecer_audio(self.config.get_output_directory(), url)
             self.log("\n✓ Processamento concluído!")
             self.log(f"   📁 {output_dir}")
+            self._lembrar_track_n(url, video_info, artist, album, year, output_dir, tempos_usuario)
             self._cleanup_temp_dir(temp_dir)
             return True
 
@@ -1050,6 +1052,31 @@ class AlbumMixin:
             return True
         except Exception as e:
             self.log(f"✗ Erro na separação: {e} [{onde_quebrou(e)}]")
+            return None
+
+    def _lembrar_track_n(self, url, video_info, artist, album, year, output_dir, tempos_usuario=None):
+        """
+        12.21: disco gravado com faixas "Track N" (sem nome) entra em "Precisam de você" → "Gravados com
+        Track N", pra você não esquecer de pôr os nomes (no ✂ Editar disco). Não vale pro que foi salvo
+        no ✂ Editar (os nomes são os que você deixou).
+        """
+        pq = getattr(self, 'pending_queue', None)
+        if pq is None or not output_dir or (tempos_usuario or '').lstrip().startswith('#exato'):
+            return None
+        try:
+            arqs = sorted(Path(output_dir).glob('*.mp3'))
+            sem_nome = [a for a in arqs if re.fullmatch(r'\d+ - Track \d+', a.stem)]
+            if not sem_nome:
+                return None
+            item = pq.anotar_track_n(url, (video_info or {}).get('title') or '', str(output_dir), len(sem_nome),
+                                     len(arqs), title_artist=artist or '', title_album=album or '',
+                                     year=str(year or ''))
+            self.log(f"   📝 {len(sem_nome)} de {len(arqs)} faixa(s) com \"Track N\": o disco está em \"Precisam de "
+                     f"você\" → \"Gravados com Track N\", pra você pôr os nomes (✂ Editar)")
+            self._reg('TRACK_N', f"{len(sem_nome)} de {len(arqs)} faixas sem nome | {output_dir} | {url}")
+            return item
+        except Exception as e:
+            self.log(f"   ⚠️  Não consegui anotar em \"Gravados com Track N\": {str(e)[:80]}")
             return None
 
     def _track_n_longe_do_discogs(self, cortes, n_discogs) -> Optional[str]:

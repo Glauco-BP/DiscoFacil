@@ -5,7 +5,9 @@ concluiu e esperam decisão do usuário. Persistida em fila_pendentes.json.
 kind: 'baixa_confianca' (Discogs achou, mas com confiança baixa),
 'nao_encontrado' (nada no Discogs), 'erro_discogs' (Discogs não respondeu),
 'falha_download', 'falha_corte' e 'outro_disco' (o corte mostrou que o
-disco identificado provavelmente não é o do vídeo). "Remover" manda o item para
+disco identificado provavelmente não é o do vídeo). 'track_n' (12.21): disco JÁ
+GRAVADO com nomes "Track N" - um lembrete pra pôr os nomes no ✂ Editar disco
+(não vai pra fila; sai da lista quando o disco é salvo no editor). "Remover" manda o item para
 "Descartados" (pendentes_descartados.json), de onde pode ser recuperado.
 Acesso protegido por trava: a janela e o trabalhador usam de threads distintas.
 """
@@ -230,6 +232,42 @@ class PendingQueue:
             self.save()
             return item
 
+    def anotar_track_n(self, url: str, video_title: str, pasta: str, com_track_n: int, total: int,
+                       title_artist: str = '', title_album: str = '', year: str = '',
+                       confidence_pct: int = 0) -> Dict:
+        """
+        "Gravados com Track N": o disco foi gravado (na `pasta`) com `com_track_n` de `total` faixas
+        sem nome. Fica na lista pra você pôr os nomes no ✂ Editar disco. Não é o add(): não conta como
+        falha do item e convive com outro item da mesma URL; o lembrete antigo do mesmo vídeo ou da
+        mesma pasta dá lugar a este.
+        """
+        item = {
+            'id': uuid.uuid4().hex[:12], 'kind': 'track_n', 'source_type': 'video', 'url': url,
+            'video_title': video_title, 'title_artist': title_artist, 'title_album': title_album, 'year': year,
+            'confidence_pct': confidence_pct, 'pasta': str(pasta), 'gravado_ts': time.time(),
+            'reason': (f"Gravado com \"Track N\" ({com_track_n} de {total} faixas sem nome): ponha os nomes "
+                       f"no ✂ Editar - {Path(pasta).name}"),
+            'discogs_data': None, 'marked_for_download': False, 'falhas': 0,
+            'added_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+        }
+        with self._trava:
+            self.items = [i for i in self.items if not (i.get('kind') == 'track_n' and (
+                i.get('url') == url or _mesma_pasta(i.get('pasta'), pasta)))]
+            self.items.append(item)
+            self.save()
+        return item
+
+    def tirar_track_n(self, pasta) -> int:
+        """O disco da `pasta` foi salvo no ✂ Editar disco: o lembrete "Gravados com Track N" sai."""
+        with self._trava:
+            antes = len(self.items)
+            self.items = [i for i in self.items if not (i.get('kind') == 'track_n'
+                                                        and _mesma_pasta(i.get('pasta'), pasta))]
+            n = antes - len(self.items)
+            if n:
+                self.save()
+            return n
+
     def remove(self, item_id: str) -> None:
         with self._trava:
             self.items = [i for i in self.items if i['id'] != item_id]
@@ -243,3 +281,12 @@ class PendingQueue:
 
     def __len__(self) -> int:
         return len(self.items)
+
+
+def _mesma_pasta(a, b) -> bool:
+    if not a or not b:
+        return False
+    try:
+        return Path(a).resolve() == Path(b).resolve()
+    except OSError:
+        return str(a) == str(b)

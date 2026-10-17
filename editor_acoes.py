@@ -311,6 +311,17 @@ class EditorMixin:
             pass
 
     # ------------------------------------------------------------------ disco já cortado
+    def abrir_editor_track_n(self, item):
+        """"Gravados com Track N" (12.21): abre o ✂ Editar disco na pasta do disco gravado; ao salvar lá,
+        o lembrete sai da lista."""
+        pasta = item.get('pasta')
+        if not pasta or not EC.mp3s_da_pasta(pasta):
+            messagebox.showinfo("Editar disco", f"Não achei os MP3 deste disco em\n{pasta}\n\nSe você moveu a "
+                                                f"pasta, use \"✂ Editar disco\" na tela principal e depois "
+                                                f"\"Remover\" este item.", parent=self.root)
+            return None
+        return self.abrir_editor_pasta(pasta)
+
     def abrir_editor_pasta(self, pasta=None):
         base = self.config.get_output_directory()
         if pasta is None:
@@ -382,6 +393,14 @@ class EditorMixin:
                 if je is not None:
                     je.salvo()                # só agora a tela fecha: se der erro, as marcas continuam lá
                 soltar_juntado()
+                pq = getattr(self, 'pending_queue', None)
+                if pq is not None and pq.tirar_track_n(pasta):
+                    # 12.21: o lembrete "Gravados com Track N" deste disco sai da lista
+                    self.log(f"   🧹 Saiu de \"Gravados com Track N\": {pasta.name}")
+                    try:
+                        self._refresh_main_buttons_state()
+                    except Exception:
+                        pass
                 messagebox.showinfo("Editar disco", f"Pronto: {r['faixas']} faixas em\n{pasta}\n\nOs arquivos "
                                                     f"de antes estão em\n{r['antes']}", parent=self.root)
             self._preparar_em_segundo_plano("Gravando o disco editado", regravar, pronto)
