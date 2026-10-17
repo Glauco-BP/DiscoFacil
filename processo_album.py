@@ -40,7 +40,7 @@ from corte_audio import esquecer_medidas
 from corte_estrategias import match_durations_to_tracks
 from pontuacao import (avaliar_identificacao, mesmo_disco, score_discogs_candidate, texto_identificacao,
                        titles_similar)
-from util import onde_quebrou, segundos_da_faixa
+from util import PECA_APAGADA, onde_quebrou, segundos_da_faixa
 from versao import APP_TITULO
 from youtube_chapters_extractor import YouTubeChaptersExtractor
 
@@ -367,10 +367,11 @@ class AlbumMixin:
                          "\"Precisam de você\" (abra o ✂ Editar de novo e salve)")
                 final_source, capitulos, discogs_candidates = 'editor', None, None
             if lista:
+                n_faixas = sum(1 for x in lista if x['title'] != PECA_APAGADA)     # sem os pedaços apagados
                 self.log(f"\n✍️  {'Cortes marcados por você no ✂ Editar' if exato else 'Tempos informados por você'}: "
-                         f"{len(lista)} faixas")
+                         f"{n_faixas} faixas")
                 self._reg('FONTE', f"{'cortes do editor' if exato else 'tempos informados pelo usuário'} | "
-                                   f"{len(lista)} faixas")
+                                   f"{n_faixas} faixas")
                 ok = nas_posicoes(lista, marcar=False, exato=exato)
                 if exato and not ok:
                     # os cortes do editor são a última palavra: sem eles, nada de outro corte por conta própria

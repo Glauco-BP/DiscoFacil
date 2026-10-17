@@ -25,7 +25,7 @@ from typing import Dict, List, Optional
 
 from audio_util import FFMPEG_PATH, _subprocess_no_window_kwargs, duracao_do_arquivo
 from corte_audio import posicao_de_corte_no_silencio
-from util import sanitize, segundos_da_faixa
+from util import PECA_APAGADA, sanitize, segundos_da_faixa
 
 PASTA_AUDIOS = '.audios_pasta_pendencia'
 PASTA_ANTES = 'antes_da_edicao'
@@ -145,101 +145,39 @@ def nome_unico(prefixo) -> str:
 
 
 # ------------------------------------------------------------------ medidas pra desenhar
-SOM_QUADRO_SEC = 0.5                  # um vetor de "cor do som" a cada meio segundo
-SOM_JANELA_SEC = 8.0                  # compara os 8 s antes com os 8 s depois
-SOM_DISTANCIA_MIN_SEC = 30.0          # duas sugestões nunca mais perto que isso
-SOM_LIMIAR = 4.0                      # quantas vezes acima do normal do disco (mediana/desvio)
-SOM_MUDANCA_MIN = 6.0                 # e uma mudança de verdade: ~0,6 desvio em cada faixa de frequência
-
-
 def medir_audio(arquivo):
     """
     Lê o áudio uma vez (8 kHz mono, aos pedaços - um vídeo de 3 horas não precisa caber na memória) e
-    devolve (envelope, sugestões):
-      - envelope: volume (RMS, 0..1) a cada ENVELOPE_PASSO_SEC, pra desenhar;
-      - sugestões: segundos onde a "cor" do som muda de repente (outro instrumento, outro andamento,
-        outra música emendada sem pausa). É só sugestão pro editor; o corte automático não usa.
+    devolve (envelope, []): o volume (RMS, 0..1) a cada ENVELOPE_PASSO_SEC, pra desenhar. A lista vazia
+    era a das "mudanças no som" (guia roxa), que saiu na 12.21: acertava pouco e deixava a abertura
+    do editor uns 3 s mais lenta.
     """
     import numpy as np
     passo = int(ENVELOPE_TAXA * ENVELOPE_PASSO_SEC)
-    quadro = int(ENVELOPE_TAXA * SOM_QUADRO_SEC)
-    bloco = quadro * 2 * 200                      # 100 s por leitura (múltiplo dos dois passos)
+    bloco = passo * 2 * 2000                      # 100 s por leitura
     proc = subprocess.Popen([FFMPEG_PATH, '-v', 'error', '-i', str(arquivo), '-ac', '1', '-ar', str(ENVELOPE_TAXA),
                              '-f', 's16le', '-'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                             **_subprocess_no_window_kwargs())
-    janela = np.hanning(quadro).astype(np.float32)
-    freqs = np.fft.rfftfreq(quadro, 1.0 / ENVELOPE_TAXA)
-    bordas = np.geomspace(60, ENVELOPE_TAXA / 2 - 1, 17)
-    faixas = [(freqs >= a) & (freqs < b) for a, b in zip(bordas, bordas[1:])]
-    partes_env, partes_som, resto = [], [], b''
+    partes, resto = [], b''
     try:
         while True:
             dados = proc.stdout.read(bloco)
             if not dados:
                 break
             dados = resto + dados
-            n = len(dados) // (quadro * 2)
-            resto = dados[n * quadro * 2:]
-            if not n:
-                continue
-            x = np.frombuffer(dados[:n * quadro * 2], dtype=np.int16).astype(np.float32)
-            v = x.reshape(-1, passo)
-            partes_env.append(np.sqrt(np.mean(v * v, axis=1)))
-            q = x.reshape(n, quadro) * janela
-            esp = np.abs(np.fft.rfft(q, axis=1)) ** 2
-            partes_som.append(np.stack([np.log10(esp[:, f].sum(axis=1) + 1.0) for f in faixas], axis=1))
-        if resto:
-            x = np.frombuffer(resto[:len(resto) // (passo * 2) * passo * 2], dtype=np.int16).astype(np.float32)
-            if len(x):
-                v = x.reshape(-1, passo)
-                partes_env.append(np.sqrt(np.mean(v * v, axis=1)))
+            n = len(dados) // (passo * 2)
+            resto = dados[n * passo * 2:]
+            if n:
+                v = np.frombuffer(dados[:n * passo * 2], dtype=np.int16).astype(np.float32).reshape(n, passo)
+                partes.append(np.sqrt(np.mean(v * v, axis=1)))
     finally:
         proc.stdout.close()
         proc.wait()
-    if not partes_env:
+    if not partes:
         return np.zeros(0, dtype=np.float32), []
-    rms = np.concatenate(partes_env)
+    rms = np.concatenate(partes)
     topo = float(np.percentile(rms, 99)) or 1.0
-    env = np.minimum(1.0, rms / topo).astype(np.float32)
-    return env, (mudancas_no_som(np.concatenate(partes_som), rms) if partes_som else [])
-
-
-def mudancas_no_som(bandas, rms=None) -> List[float]:
-    """
-    Onde a "cor" do som muda de repente: para cada instante, a diferença entre o som médio dos 8 s
-    antes e dos 8 s depois (só a forma do espectro, não o volume - uma parte mais alta da mesma
-    música não conta). Picos bem acima do normal DESTE disco viram sugestões.
-    """
-    import numpy as np
-    F = np.asarray(bandas, dtype=np.float64)
-    if len(F) < 4 * SOM_JANELA_SEC / SOM_QUADRO_SEC:
-        return []
-    quieto = F.max(axis=1) < np.percentile(F.max(axis=1), 5) + 0.3     # trechos de silêncio
-    F = F - F.mean(axis=1, keepdims=True)                              # só a forma, sem o volume
-    F = (F - F.mean(axis=0)) / (F.std(axis=0) + 1e-6)
-    w = int(SOM_JANELA_SEC / SOM_QUADRO_SEC)
-    c = np.vstack([np.zeros((1, F.shape[1])), np.cumsum(F, axis=0)])
-    T = len(F)
-    nov = np.zeros(T)
-    idx = np.arange(w, T - w)
-    antes = (c[idx] - c[idx - w]) / w
-    depois = (c[idx + w] - c[idx]) / w
-    nov[idx] = ((antes - depois) ** 2).sum(axis=1)
-    nov[quieto] = 0.0
-    base = nov[w:T - w]
-    if not len(base):
-        return []
-    med = float(np.median(base))
-    desvio = float(np.median(np.abs(base - med))) * 1.4826 or 1e-6
-    z = (nov - med) / desvio
-    minimo = int(SOM_DISTANCIA_MIN_SEC / SOM_QUADRO_SEC)
-    picos = []
-    for t in np.argsort(-z):
-        if z[t] < SOM_LIMIAR or nov[t] < SOM_MUDANCA_MIN:
-            break
-        if all(abs(t - p) >= minimo for p in picos):
-            picos.append(int(t))
-    return sorted(round(t * SOM_QUADRO_SEC, 1) for t in picos)
+    return np.minimum(1.0, rms / topo).astype(np.float32), []
 
 
 def envelope_do_audio(arquivo):
@@ -272,14 +210,17 @@ def ler_medidas(destino, arquivo) -> Dict:
             r = {'gaps': json.loads(str(z['gaps'])) if 'gaps' in z.files else None}
             if 'envelope' in z.files and len(z['envelope']):
                 r['envelope'] = z['envelope'].astype(np.float32)
-                r['sugestoes'] = [float(x) for x in z['sugestoes']] if 'sugestoes' in z.files else []
+            # 12.21: os cortes sugeridos (por versão e lista de faixas) e as listas do vídeo também
+            r['marcas'] = json.loads(str(z['marcas'])) if 'marcas' in z.files else {}
+            r['fontes'] = json.loads(str(z['fontes'])) if 'fontes' in z.files else None
             return r
     except Exception:
         return {}
 
 
-def gravar_medidas(destino, arquivo, envelope=None, sugestoes=None, gaps=None) -> bool:
-    """Guarda as medidas (o que não vier, fica o que já estava guardado)."""
+def gravar_medidas(destino, arquivo, envelope=None, sugestoes=None, gaps=None, marcas=None, fontes=None) -> bool:
+    """Guarda as medidas (o que não vier, fica o que já estava guardado). `marcas`: {chave: cortes
+    sugeridos} (ver Edicao.chave_das_marcas); `fontes`: as listas de nomes do vídeo."""
     import json
     import numpy as np
     try:
@@ -293,8 +234,13 @@ def gravar_medidas(destino, arquivo, envelope=None, sugestoes=None, gaps=None) -
             dados['gaps'] = np.array(json.dumps(g, default=float))
         if env is not None:
             dados['envelope'] = np.asarray(env, dtype=np.float32)
-            dados['sugestoes'] = np.asarray(sugestoes if sugestoes is not None else velho.get('sugestoes') or [],
-                                            dtype=np.float64)
+        todas = dict(velho.get('marcas') or {})
+        todas.update(marcas or {})
+        if todas:
+            dados['marcas'] = np.array(json.dumps(todas, default=float))
+        f = fontes if fontes is not None else velho.get('fontes')
+        if f is not None:
+            dados['fontes'] = np.array(json.dumps(f, default=float))
         tmp_ = destino.with_name(destino.stem + '.tmp.npz')
         np.savez_compressed(str(tmp_), **dados)
         os.replace(tmp_, destino)
@@ -358,11 +304,13 @@ class Edicao:
         self.duracao = 0.0
         self.envelope = None
         self.silencios: List[tuple] = []
-        self.sugestoes_som: List[float] = []   # possíveis trocas de música sem pausa (mudança no som)
+        self.sugestoes_som: List[float] = []   # guia roxa (saiu na 12.21): fica vazio
+        self.fontes_guardadas = None           # listas de nomes do vídeo guardadas nas medidas (12.21)
         self.marcas: List[Dict] = []           # {'pos', 'tipo': 'silencio'|'estimado'|'usuario', 'faixas': [k]}
         self.nomes_base: Optional[List[str]] = None
         self.faixas_inicio: Optional[List[int]] = None
         self.nomes_editados: Dict[int, str] = {}
+        self.apagados: set = set()                    # pedaços apagados (🗑 Apagar pedaço): não são gravados
         self._nomes_guardados: Dict[tuple, str] = {}  # nome editado de um pedaço que foi juntado a outro
         self.candidatos: Dict[str, List[str]] = {}    # fonte -> nomes (sugestões no duplo clique)
         self.fonte_da_identidade: Optional[str] = None  # lista sugerida que deu os nomes (None: Discogs/arquivos)
@@ -371,36 +319,61 @@ class Edicao:
         self.mudou = False
 
     # --- carga
+    def chave_das_marcas(self) -> str:
+        """Os cortes sugeridos dependem do áudio, da lista de faixas e da versão do programa: guardados
+        com esta chave, reabrir o mesmo disco não recalcula (12.21)."""
+        import json
+        from versao import APP_VERSION
+        return APP_VERSION + '|' + json.dumps([(o['title'], round(o['duracao'], 1)) for o in self.oficiais],
+                                              ensure_ascii=False)
+
     def carregar(self, marcas=None, log=None, medidas=None):
-        """Mede o áudio (duração, volume, silêncios, mudanças no som) e acha as marcas iniciais (ou usa
-        `marcas`). `medidas`: arquivo .npz pra guardar/reaproveitar as medidas (abrir de novo é rápido)."""
+        """Mede o áudio (duração, volume, silêncios) e acha as marcas iniciais (ou usa `marcas`).
+        `medidas`: arquivo .npz pra guardar/reaproveitar as medidas, os cortes sugeridos e as listas do
+        vídeo (abrir de novo é rápido). 12.21: o volume (só pro desenho) é medido ao mesmo tempo que os
+        silêncios e os cortes sugeridos, numa thread."""
+        import threading
         from corte_album import AlbumCutter
         from corte_estrategias import SmartCutter
         quieto = log or (lambda *a, **k: None)
         self.duracao = float(duracao_do_arquivo(self.arquivo) or 0.0)
         guardado = ler_medidas(medidas, self.arquivo) if medidas else {}
+        self.fontes_guardadas = guardado.get('fontes')
+        volume = {}
         if guardado.get('envelope') is not None:
-            self.envelope, self.sugestoes_som = guardado['envelope'], list(guardado.get('sugestoes') or [])
+            volume['env'] = guardado['envelope']
+            medicao = None
         else:
-            self.envelope, self.sugestoes_som = medir_audio(self.arquivo)
+            def medir():
+                try:
+                    volume['env'] = medir_audio(self.arquivo)[0]
+                except Exception as e:
+                    volume['erro'] = e
+            medicao = threading.Thread(target=medir, daemon=True)
+            medicao.start()
         meta = {'tracks': [{'title': o['title'], 'duration': o['duracao']} for o in self.oficiais], 'title': self.titulo}
         ac = AlbumCutter('', self.titulo, self.arquivo, meta, str(Path(self.arquivo).parent), log_func=quieto)
         gaps = guardado.get('gaps') or ac.detect_gaps()
         self.gaps = gaps
-        if medidas:
-            gravar_medidas(medidas, self.arquivo, envelope=self.envelope, sugestoes=self.sugestoes_som, gaps=gaps)
         sc = SmartCutter(meta, gaps, self.arquivo, log_func=quieto)
         clusters = sc.cluster_gaps(tolerance=5.0)
         self.silencios = silencios_dos_gaps(clusters)
+        chave, novas = self.chave_das_marcas(), {}
         if marcas is not None:
             self.marcas = [dict(m) for m in marcas]
+        elif (guardado.get('marcas') or {}).get(chave) is not None:
+            self.marcas = [dict(m) for m in guardado['marcas'][chave]]
         else:
             self.marcas = self._marcas_iniciais(ac, gaps, sc, clusters)
+            novas = {chave: [{'pos': float(m['pos']), 'tipo': m['tipo']} for m in self.marcas]}
+        if medicao is not None:
+            medicao.join()
+            if 'erro' in volume:
+                raise volume['erro']
+        self.envelope, self.sugestoes_som = volume['env'], []
+        if medidas:
+            gravar_medidas(medidas, self.arquivo, envelope=self.envelope, gaps=gaps, marcas=novas)
         self.marcas.sort(key=lambda m: m['pos'])
-        # mudança no som perto de um silêncio ou de um corte já marcado não é sugestão nova
-        self.sugestoes_som = [p for p in self.sugestoes_som
-                              if not any(a - 4 <= p <= b + 4 for a, b, _ in self.silencios)
-                              and not any(abs(m['pos'] - p) < 6 for m in self.marcas)]
         self.rotular()
         return self
 
@@ -560,20 +533,64 @@ class Edicao:
         uma lista sugerida que bata (o Discogs das tags)."""
         return bool(self.nomes_fixos) and all(re.fullmatch(r'Track \d+', n or '') for n in self.nomes_fixos)
 
+    def _lista_dos_pedacos(self) -> tuple:
+        """(um nome por pedaço, fonte) da lista que bate com os pedaços: com todos ou, havendo pedaços
+        apagados, só com os que ficam (ex.: 11 pedaços, 1 deles um silêncio apagado, e 10 músicas no
+        Discogs). (None, None) se nenhuma bate."""
+        n = len(self.marcas) + 1
+        lista, fonte = self._lista_que_bate(n)
+        if lista is not None:
+            return list(lista), fonte
+        ficam = self.pecas_que_ficam()
+        if len(ficam) < n:
+            lista, fonte = self._lista_que_bate(len(ficam))
+            if lista is not None:
+                proximo = iter(lista)
+                return [next(proximo) if i in ficam else '' for i in range(n)], fonte
+        return None, None
+
     def nomes_automaticos(self) -> List[str]:
-        """Os nomes que o programa põe em cada pedaço (sem os que você escreveu)."""
+        """Os nomes que o programa põe em cada pedaço (sem os que você escreveu). "Track N" conta só
+        os pedaços que ficam."""
         n = len(self.marcas) + 1
         if self._identidade():
             return self._nomes_por_identidade()
-        lista, _ = self._lista_que_bate(n)
-        return list(lista) if lista is not None else [f'Track {i + 1}' for i in range(n)]
+        lista, _ = self._lista_dos_pedacos()
+        if lista is not None:
+            return lista
+        numeros = {i: k + 1 for k, i in enumerate(self.pecas_que_ficam())}
+        return [f'Track {numeros[i]}' if i in numeros else '' for i in range(n)]
 
     def fonte_dos_nomes(self) -> Optional[str]:
         """De que lista do vídeo vieram os nomes automáticos ("descrição do vídeo"...) - None quando
         vêm do Discogs confirmado, dos arquivos de antes ou são "Track N"."""
         if self._identidade():
             return self.fonte_da_identidade
-        return self._lista_que_bate(len(self.marcas) + 1)[1]
+        return self._lista_dos_pedacos()[1]
+
+    # --- pedaços apagados (12.21)
+    def pecas_que_ficam(self) -> List[int]:
+        """Os pedaços que vão ser gravados (todos menos os apagados), em ordem."""
+        return [i for i in range(len(self.marcas) + 1) if i not in self.apagados]
+
+    def numero_da_faixa(self, i) -> Optional[int]:
+        """O nº com que o pedaço i vai ser gravado (os de depois de um apagado andam uma casa), ou None."""
+        ficam = self.pecas_que_ficam()
+        return ficam.index(i) + 1 if i in ficam else None
+
+    def alternar_apagado(self, i) -> bool:
+        """🗑 Apagar pedaço: o pedaço i não é gravado (silêncio, defeito, uma música que você não quer).
+        De novo no mesmo pedaço, volta. Não deixa apagar todos. Devolve se ficou apagado."""
+        if not 0 <= i <= len(self.marcas):
+            return False
+        if i in self.apagados:
+            self.apagados.discard(i)
+        elif len(self.pecas_que_ficam()) > 1:
+            self.apagados.add(i)
+        else:
+            return False
+        self.mudou = True
+        return i in self.apagados
 
     def nomes(self) -> List[str]:
         base = self.nomes_automaticos()
@@ -590,17 +607,25 @@ class Edicao:
             return durs
         if self.oficiais and len(self.oficiais) == n:
             return [o['duracao'] for o in self.oficiais]
+        ficam = self.pecas_que_ficam()
+        if self.oficiais and len(self.oficiais) == len(ficam):
+            durs = iter(o['duracao'] for o in self.oficiais)
+            return [next(durs) if i in ficam else 0.0 for i in range(n)]
         return [0.0] * n
 
     def situacao_pecas(self) -> List[str]:
-        """Por pedaço: 'ok', 'estimado' (uma das pontas não foi confirmada) ou 'longo' (2 músicas?)."""
+        """Por pedaço: 'ok', 'estimado' (uma das pontas não foi confirmada), 'longo' (2 músicas?) ou
+        'apagado'."""
         pecas = self.pecas()
-        durs = sorted(b - a for a, b in pecas)
+        durs = sorted(b - a for i, (a, b) in enumerate(pecas) if i not in self.apagados)
         mediana = durs[len(durs) // 2] if durs else 0
         faltam = self.faltam()
         oficiais = self.duracoes_oficiais()
         sit = []
         for i, (a, b) in enumerate(pecas):
+            if i in self.apagados:
+                sit.append('apagado')
+                continue
             pontas = [self.marcas[k]['tipo'] for k in (i - 1, i) if 0 <= k < len(self.marcas)]
             d, esperado = b - a, oficiais[i]
             longo = (faltam > 0 and mediana > 0 and d > 1.6 * mediana and d > mediana + 60) or \
@@ -608,19 +633,25 @@ class Edicao:
             sit.append('longo' if longo else ('estimado' if 'estimado' in pontas else 'ok'))
         return sit
 
+    def _bate_com_o_discogs(self) -> bool:
+        """O nº de pedaços bate com o Discogs: contando todos, ou só os que ficam (pedaço apagado
+        que era silêncio ou defeito)."""
+        n = len(self.oficiais)
+        return len(self.marcas) + 1 == n or len(self.pecas_que_ficam()) == n
+
     def faltam(self) -> int:
         """Quantos cortes faltam pro nº de músicas do Discogs (0 sem Discogs ou se sobram)."""
-        return max(0, len(self.oficiais) - (len(self.marcas) + 1)) if self.oficiais else 0
+        if not self.oficiais or self._bate_com_o_discogs():
+            return 0
+        return max(0, len(self.oficiais) - len(self.pecas_que_ficam()))
 
     def sobram(self) -> int:
-        return max(0, (len(self.marcas) + 1) - len(self.oficiais)) if self.oficiais else 0
+        if not self.oficiais or self._bate_com_o_discogs():
+            return 0
+        return max(0, len(self.pecas_que_ficam()) - len(self.oficiais))
 
     def estimadas(self) -> List[int]:
         return [i for i, m in enumerate(self.marcas) if m['tipo'] == 'estimado']
-
-    def sugestoes_dentro(self, i) -> List[float]:
-        a, b = self.pecas()[i]
-        return [p for p in self.sugestoes_som if a + 20 < p < b - 20]
 
     # --- nomes candidatos
     def adicionar_candidatos(self, fonte, nomes):
@@ -656,12 +687,12 @@ class Edicao:
         """Uma lista de nomes (um por linha, com ou sem número e tempo) vira os nomes das faixas, em
         ordem. Devolve quantos nomes foram usados."""
         nomes = nomes_de_lista(texto)
-        n = len(self.marcas) + 1
-        for i, nome in enumerate(nomes[:n]):
+        ficam = self.pecas_que_ficam()               # os apagados não recebem nome
+        for i, nome in zip(ficam, nomes):
             self.renomear(i, nome)
         if nomes:
             self.adicionar_candidatos('colados', nomes)
-        return min(len(nomes), n)
+        return min(len(nomes), len(ficam))
 
     # --- edição
     def marca_mais_perto(self, pos, ate=None) -> Optional[int]:
@@ -688,6 +719,8 @@ class Edicao:
             i = next(k for k, m in enumerate(self.marcas) if m is nova)
             # o pedaço i virou dois: os nomes editados dos pedaços depois dele andam uma casa
             self.nomes_editados = {(k + 1 if k > i else k): v for k, v in self.nomes_editados.items()}
+            # pedaço apagado cortado em dois: as duas partes continuam apagadas
+            self.apagados = {k + 1 if k > i else k for k in self.apagados} | ({i + 1} if i in self.apagados else set())
             guardado = self._nomes_guardados.pop(tuple(nova.get('faixas') or ()), None)
             if guardado and nova.get('faixas'):
                 self.nomes_editados[i + 1] = guardado      # você tinha dado esse nome antes de juntar
@@ -738,6 +771,9 @@ class Edicao:
                 self._nomes_guardados[tuple(m['faixas'])] = self.nomes_editados[i + 1]
         # os pedaços i e i+1 viraram um (fica o nome editado do i, se houver); os de depois voltam uma casa
         self.nomes_editados = {(k - 1 if k > i + 1 else k): v for k, v in self.nomes_editados.items() if k != i + 1}
+        # juntou um apagado com um que fica: fica tudo (apagar música por engano é pior)
+        junto = {i} if i in self.apagados and (i + 1) in self.apagados else set()
+        self.apagados = {k - 1 for k in self.apagados if k > i + 1} | {k for k in self.apagados if k < i} | junto
         self.mudou = True
 
     def silencio_mais_perto(self, pos) -> Optional[float]:
@@ -757,9 +793,12 @@ class Edicao:
 
     # --- saída
     def texto_tempos(self) -> str:
-        """Os cortes como "tempos informados" EXATOS (o corte não procura pausa perto)."""
+        """Os cortes como "tempos informados" EXATOS (o corte não procura pausa perto). Pedaço apagado
+        sai com o nome PECA_APAGADA (12.21)."""
         linhas = ['#exato']
-        for (a, _), nome in zip(self.pecas(), self.nomes()):
+        for i, ((a, _), nome) in enumerate(zip(self.pecas(), self.nomes())):
+            if i in self.apagados:
+                nome = PECA_APAGADA                    # o corte acontece, mas o pedaço não é gravado
             ms = int(round(a * 1000))                  # em milissegundos inteiros: nunca sai "2:60.000"
             h, ms = divmod(ms, 3_600_000)
             mi, ms = divmod(ms, 60_000)
@@ -924,7 +963,10 @@ def regravar_pasta(pasta, base, edicao: Edicao, info: Dict, log=print) -> Dict:
             return capas_arq[chave]
 
         novos = []
-        pecas, nomes = edicao.pecas(), edicao.nomes()
+        # 12.21: os pedaços apagados ficam de fora e os de depois andam uma casa
+        ficam = edicao.pecas_que_ficam()
+        todas, todos_nomes = edicao.pecas(), edicao.nomes()
+        pecas, nomes = [todas[i] for i in ficam], [todos_nomes[i] for i in ficam]
         for n, ((a, b), nome) in enumerate(zip(pecas, nomes), start=1):
             arq = trabalho / f"{n:02d} - {sanitize(nome)}.mp3"
             r = subprocess.run([FFMPEG_PATH, '-v', 'error', '-y', '-ss', f'{a:.3f}', '-to', f'{b:.3f}',
@@ -1046,6 +1088,8 @@ def registro_de_correcoes(ed: Edicao, extra: Optional[Dict] = None) -> Dict:
          'duracao_s': round(ed.duracao, 1), 'faixas_discogs': len(ed.oficiais),
          'durações_discogs': bool(guias), 'pecas_sugeridas': len(sug) + 1, 'pecas_finais': len(fim) + 1,
          'pausas_no_disco': len(ed.silencios), 'mudancas_no_som': len(ed.sugestoes_som),
+         'pecas_apagadas': [{'faixa': i + 1, 'inicio': round(a, 2), 'duracao_s': round(b - a, 2)}
+                            for i, (a, b) in enumerate(ed.pecas()) if i in ed.apagados],
          'cortes': cortes, 'nomes_trocados': trocados,
          'nomes_da_abertura': (ed.sugestao_inicial or {}).get('nomes') or [],
          'fonte_dos_nomes': ed.fonte_dos_nomes() or (_fonte_fixa(ed) if len(genericos) < len(nomes_auto) else None),

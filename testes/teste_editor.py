@@ -16,6 +16,7 @@ from sint import *
 from pathlib import Path
 import main
 import edicao_cortes as EC
+from util import PECA_APAGADA
 from tocador import Tocador, TocadorFalso
 from mutagen.id3 import ID3
 
@@ -232,6 +233,64 @@ t(f'editor é a última palavra: 8 faixas (o Discogs tem 10), com os nomes da ta
   ok8 and len(arqs8) == 8 and nomes8[2] == 'Born To Be Blue / That Lucky Old Sun' and nomes8[7] == 'Medley Final'
   and nomes8[6] == "Ol' Man Time"
   and nomes8[0] == RAY[0] and str(ID3(arqs8[-1]).get('TRCK')) in ('8/8', '8'))
+
+# 12.21: 🗑 Apagar pedaço - o pedaço não é gravado e os de depois andam uma casa
+eda = EC.Edicao(disco, OFICIAIS, titulo='x')
+eda.duracao, eda.marcas = ed.duracao, [{'pos': m['pos'], 'tipo': m['tipo']} for m in ed.marcas]
+eda.silencios = ed.silencios
+eda.rotular()
+eda.marcar(inicios[5] - 20.0)                    # um defeito no fim da faixa 5: corte novo, pedaço "Ol' Man River (2)"
+t(f'apagar pedaço: corte novo no fim de uma faixa dá um pedaço a mais ({eda.nomes()[4:6]})',
+  len(eda.pecas()) == 11 and eda.nomes()[5] == "Ol' Man River (2)" and eda.sobram() == 1)
+eda.alternar_apagado(5)
+t(f'...apagado: não conta (bate com o Discogs de novo), as faixas de depois andam uma casa '
+  f'({[eda.numero_da_faixa(i) for i in (4, 5, 6)]})',
+  eda.apagados == {5} and eda.sobram() == 0 and eda.faltam() == 0 and eda.numero_da_faixa(6) == 6
+  and eda.numero_da_faixa(5) is None and eda.nomes()[6] == 'In The Evening' and eda.situacao_pecas()[5] == 'apagado')
+tx_a = eda.texto_tempos()
+lidos_a = EC.ler_tempos_exatos(tx_a)
+t('...nos cortes salvos (#exato) o pedaço vai marcado como apagado',
+  lidos_a and len(lidos_a) == 11 and lidos_a[5]['title'] == PECA_APAGADA and lidos_a[6]['title'] == 'In The Evening')
+eda.alternar_apagado(5)
+t('...apagar de novo traz o pedaço de volta', not eda.apagados and eda.sobram() == 1)
+eda.alternar_apagado(5)
+eda.marcar(inicios[7] + 30.0)                    # corte novo depois do apagado: o apagado continua o mesmo pedaço
+t('...cortar depois do apagado não muda qual pedaço está apagado', eda.apagados == {5}
+  and eda.nomes()[6] == 'In The Evening')
+eda.apagar(eda.marca_mais_perto(inicios[7] + 30.0))
+eda.apagar(4)                                    # junta o apagado com o pedaço de antes: volta a ficar (não perde música)
+t('...juntar um apagado com um pedaço que fica: fica tudo (apagar música por engano é pior)',
+  not eda.apagados and len(eda.pecas()) == 10 and eda.nomes()[4] == "Ol' Man River")
+edu = EC.Edicao(disco, [], titulo='x'); edu.duracao = 100.0
+edu.marcas = [{'pos': 30.0, 'tipo': 'silencio'}, {'pos': 60.0, 'tipo': 'silencio'}]; edu.rotular()
+edu.alternar_apagado(0)
+t(f'...sem nomes: "Track N" conta só os que ficam ({edu.nomes()})', edu.nomes()[1:] == ['Track 1', 'Track 2'])
+edu.alternar_apagado(1)
+t('...e não deixa apagar todos', edu.alternar_apagado(2) is False and edu.pecas_que_ficam() == [2])
+edd = EC.Edicao(disco, OFICIAIS[:3], titulo='x'); edd.duracao = 400.0
+edd.marcas = [{'pos': p_, 'tipo': 'silencio'} for p_ in (100.0, 110.0, 250.0)]; edd.rotular()
+edd.alternar_apagado(1)                          # 4 pedaços, 1 é silêncio: os 3 que ficam pegam os nomes do Discogs
+t(f'...4 pedaços com um silêncio apagado e 3 músicas no Discogs: os nomes vão nos que ficam ({edd.nomes()})',
+  [edd.nomes()[i] for i in (0, 2, 3)] == RAY[:3] and edd.faltam() == 0 and edd.sobram() == 0
+  and [edd.duracoes_oficiais()[i] for i in (0, 2, 3)] == [OFICIAIS[k]['duration'] for k in range(3)])
+# a faixa 3 inteira apagada (uma música que você não quer): sai com 9 faixas, numeradas sem buraco
+saida_a = tmp('editor', 'apagado', 'x')[:-2]; shutil.rmtree(saida_a, ignore_errors=True); os.makedirs(saida_a)
+g.config = types.SimpleNamespace(get_output_directory=lambda: saida_a, get=lambda *a, **k: None)
+eda2 = EC.Edicao(disco, OFICIAIS, titulo='x')
+eda2.duracao, eda2.marcas = ed.duracao, [{'pos': m['pos'], 'tipo': m['tipo']} for m in ed.marcas]
+eda2.rotular(); eda2.alternar_apagado(2)
+EC.guardar_audio(saida_a, url, disco); logs.clear()
+oka = g._download_and_process(url, {'duration': ed.duracao}, 'Ray Charles', 'Ingredients In A Recipe For Soul',
+                              '1963', 'discogs', dd['tracks'], True, dd, from_pending=True,
+                              tempos_usuario=eda2.texto_tempos())
+arqsa = sorted(glob.glob(os.path.join(saida_a, 'Ray*', '*.mp3')))
+nomesa = [str(ID3(p).get('TIT2')) for p in arqsa]
+pecas_a = eda2.pecas()
+t(f'processar com um pedaço apagado: {len(arqsa)} faixas, sem a apagada, numeradas 1 a 9 ({os.path.basename(arqsa[2]) if len(arqsa) > 2 else ""})',
+  oka and len(arqsa) == 9 and 'Born To Be Blue' not in nomesa and nomesa[2] == 'That Lucky Old Sun'
+  and os.path.basename(arqsa[2]).startswith('03 - That Lucky Old Sun') and str(ID3(arqsa[2]).get('TRCK')) in ('3/9',)
+  and abs(main.duracao_do_arquivo(arqsa[2]) - (pecas_a[3][1] - pecas_a[3][0])) <= 0.15
+  and any('pedaço(s) apagado(s)' in l for l in logs))
 g.config = types.SimpleNamespace(get_output_directory=lambda: saida, get=lambda *a, **k: None)
 # #exato que não dá pra ler: o disco não é cortado por conta própria
 saida3 = tmp('editor', 'exato_ruim', 'x')[:-2]; shutil.rmtree(saida3, ignore_errors=True); os.makedirs(saida3)
@@ -413,8 +472,8 @@ j5._caixa_nome.event_generate('<Escape>'); esperar(0.3)
 t('Esc na caixa do nome: cancela o nome e a tela continua aberta', j5.win.winfo_exists()
   and j5.ed.nomes()[1] == RAY[1])
 
-# ------------------------------------------------------------------ 12.18: guias, mudanças no som, nomes
-from janela_editor import GUIA, SOM
+# ------------------------------------------------------------------ 12.18: guias, nomes (a roxa saiu na 12.21)
+from janela_editor import GUIA
 ed5x = j5.ed
 guias = ed5x.guias_discogs()
 t(f'guias do Discogs: {len(guias)} pontos onde as durações põem cada troca '
@@ -426,20 +485,48 @@ amarelos = [i for i in cz.find_all() if cz.type(i) in ('line', 'polygon') and cz
 textos = [cz.itemcget(i, 'text') for i in cz.find_all() if cz.type(i) == 'text']
 t(f'...em amarelo na onda, com a duração de cada música do Discogs ({[x for x in textos if x.startswith("Discogs")][:2]})',
   len(amarelos) >= 4 and 'Discogs 1: 2:06' in textos and 'Discogs 2: 3:27' in textos)
-ed5x.sugestoes_som = [300.0]
-j5.redesenhar(); esperar(0.1)
-roxos = [i for i in cz.find_all() if cz.type(i) in ('line', 'polygon') and cz.itemcget(i, 'fill') == SOM]
-t('mudança no som: marca roxa na onda e no disco inteiro', len(roxos) >= 2 and any(
-  j5.c_geral.itemcget(i, 'fill') == SOM for i in j5.c_geral.find_all()))
-x_roxo = j5._x(300.0, cz.winfo_width(), *j5.vista)
-j5._clique_zoom(types.SimpleNamespace(x=x_roxo + 3, y=200))
-t('clicar perto da marca roxa (ou amarela) leva o cursor exatamente pra ela', abs(j5.cursor - 300.0) < 0.01)
-ed5x.sugestoes_som = [60.0 + inicios[1]]
+
+def _textos_da_tela(w):
+    saida = []
+    for f in w.winfo_children():
+        try:
+            saida.append(str(f.cget('text')))
+        except tk.TclError:
+            pass
+        saida += _textos_da_tela(f)
+    return saida
+
+
+ROXO = '#7C3AED'
+roxos = [i for c_ in (cz, j5.c_geral) for i in c_.find_all() if c_.type(i) in ('line', 'polygon', 'rectangle')
+         and c_.itemcget(i, 'fill').upper() == ROXO]
+t('12.21: a guia roxa ("o som muda de repente") saiu da onda, do disco inteiro e da legenda',
+  not roxos and not any('som muda' in x for x in _textos_da_tela(j5.win)))
+g_am = max(guias, key=lambda g_: min(abs(g_ - m_['pos']) for m_ in ed5x.marcas))
+j5.vista = (g_am - 15.0, g_am + 15.0); j5.redesenhar(); esperar(0.1)     # de perto: a guia longe da marca
+x_am = j5._x(g_am, cz.winfo_width(), *j5.vista)
+j5._clique_zoom(types.SimpleNamespace(x=x_am + 3, y=200))
+t('clicar perto da guia amarela leva o cursor exatamente pra ela', abs(j5.cursor - g_am) < 0.01)
+j5.vista = (0.0, 600.0)
+# 12.21: 🗑 Apagar pedaço no ✂ Editar da pendência: o do cursor; o desenho fica cinza e riscado
+j5.vista = (inicios[4] - 60.0, inicios[5] + 240.0)
+j5.ir(inicios[4] + 5.0); esperar(0.1)
+j5.apagar_peca(); esperar(0.1)
+cinzas = [i for i in cz.find_all() if cz.type(i) == 'rectangle' and cz.itemcget(i, 'fill') == '#9CA3AF']
+textos_z = [cz.itemcget(i, 'text') for i in cz.find_all() if cz.type(i) == 'text']
+t(f'✂ Editar: "🗑 Apagar pedaço" apaga o pedaço do cursor (faixa 5), cinza na onda e "— apagado —" '
+  f'({j5.tabela.item("4", "values")[:2]})', ed5x.apagados == {4} and cinzas and '— apagado —' in textos_z
+  and j5.tabela.item('4', 'values')[1] == '— apagado —' and str(j5.tabela.item('5', 'values')[0]) == '5'
+  and '5. In The Evening' in textos_z)
+j5.apagar_peca(); esperar(0.1)
+t('...e "↩ Desfazer apagar" traz de volta', not ed5x.apagados and 'Apagar pedaço' in j5.b_apagar_peca.cget('text'))
+ed5x.mudou = False
+j5.vista = (0.0, 600.0)
 ed5x.apagar(0); j5.redesenhar(); esperar(0.1)
 avisos_txt = ' '.join(w.cget('text') for f in j5.avisos.winfo_children() for w in f.winfo_children())
-t(f'faltando um corte: o aviso aponta onde o som muda dentro da faixa longa',
-  'O som muda de repente em' in avisos_txt and 'marca roxa' in avisos_txt)
-ed5x.marcar(inicios[1]); ed5x.sugestoes_som = []
+t('faltando um corte: o aviso não fala mais de marca roxa', 'Falta 1 corte' in avisos_txt
+  and 'roxa' not in avisos_txt)
+ed5x.marcar(inicios[1])
 t(f'apagar e marcar de novo o mesmo corte devolve os nomes ({ed5x.nomes()[:2]})', ed5x.nomes()[:2] == RAY[:2])
 # nomes: candidatos de cada fonte no duplo clique
 ed5x.adicionar_candidatos('descrição do vídeo', [n + ' (Remaster)' for n in RAY])
@@ -497,28 +584,12 @@ t('colar nomes sem número na lista: "99 Luftballons" e "(I Can\'t Get No) Satis
   EC.nomes_de_lista("(I Can't Get No) Satisfaction\n99 Luftballons\nYesterday") ==
   ["(I Can't Get No) Satisfaction", '99 Luftballons', 'Yesterday'])
 
-# mudanças no som: trocas de música sem pausa, só como sugestão
-r_ = np.random.default_rng(3)
-
-
-def agudo(seg):
-    x = np.diff(np.diff(r_.standard_normal(int(seg * SR)), prepend=0), prepend=0)
-    return 0.3 * x / np.std(x) * (0.7 + 0.3 * np.sin(np.linspace(0, seg * 1.1, len(x))))
-
-
-def tom(seg, f=330):
-    tt = np.arange(int(seg * SR)) / SR
-    x = sum(np.sin(2 * np.pi * f * k * tt) / k for k in range(1, 6)) + 0.05 * r_.standard_normal(len(tt))
-    return 0.3 * x / np.std(x) * (0.7 + 0.3 * np.sin(tt * 0.9))
-
-
-partes_s = [musica(150), agudo(130), tom(140), musica(120)]
-trocas_s = list(np.cumsum([len(p_) / SR for p_ in partes_s])[:-1])
-_, sug_s = EC.medir_audio(salvar(np.concatenate(partes_s), 'editor_som.wav'))
-t(f'o som muda: as 3 trocas sem pausa achadas ({sug_s} × {[round(x_) for x_ in trocas_s]})',
-  len(sug_s) == 3 and all(abs(a_ - b_) <= 2 for a_, b_ in zip(sug_s, trocas_s)))
-_, sug_h = EC.medir_audio(salvar(musica(600), 'editor_som_igual.wav'))
-t('...e numa música só (mais alta e mais baixa) nenhuma sugestão', sug_h == [])
+# 12.21: medir o áudio é só o volume (pro desenho): sem as "mudanças no som"
+env_s, sug_s = EC.medir_audio(salvar(np.concatenate([musica(150), np.zeros(SR * 3), musica(120)]), 'editor_som.wav'))
+k_pausa = int(151.5 / EC.ENVELOPE_PASSO_SEC)
+t(f'medir o áudio: o volume a cada {EC.ENVELOPE_PASSO_SEC}s, sem guia roxa ({len(env_s)} pontos)',
+  sug_s == [] and abs(len(env_s) - 273 / EC.ENVELOPE_PASSO_SEC) <= 3 and env_s[k_pausa] < 0.05
+  and float(np.median(env_s[:k_pausa - 40])) > 0.2)
 
 # arquivo de correções: o que o programa sugeriu × o que você deixou
 edc = EC.Edicao(disco, OFICIAIS, titulo='Ray Charles - Ingredients')
@@ -554,20 +625,32 @@ copia.parent.mkdir(parents=True); shutil.copy2(disco, copia)
 med = copia.parent / '_medidas' / 'X.npz'
 t0_ = time.time(); ed_m1 = EC.Edicao(copia, OFICIAIS).carregar(medidas=med); t1_ = time.time() - t0_
 from corte_album import AlbumCutter as _AC
-_orig_med, _orig_det = EC.medir_audio, _AC.detect_gaps
+_orig_med, _orig_det, _orig_ini = EC.medir_audio, _AC.detect_gaps, EC.Edicao._marcas_iniciais
 EC.medir_audio = lambda *a: (_ for _ in ()).throw(RuntimeError('mediu de novo'))
 _AC.detect_gaps = lambda self: (_ for _ in ()).throw(RuntimeError('mediu de novo'))
+EC.Edicao._marcas_iniciais = lambda *a: (_ for _ in ()).throw(RuntimeError('cortou de novo'))
 try:
     t0_ = time.time(); ed_m2 = EC.Edicao(copia, OFICIAIS).carregar(medidas=med); t2_ = time.time() - t0_
     erro_m = None
 except RuntimeError as e:
     ed_m2, erro_m = None, str(e)
-t(f'medidas guardadas: abrir de novo reaproveita volume, silêncios e mudanças no som ({t1_:.1f}s → '
+t(f'medidas guardadas: abrir de novo reaproveita volume, silêncios e cortes sugeridos ({t1_:.1f}s → '
   f'{t2_ if ed_m2 else 0:.1f}s)', ed_m2 is not None and len(ed_m2.envelope) == len(ed_m1.envelope)
   and [m['pos'] for m in ed_m2.marcas] == [m['pos'] for m in ed_m1.marcas])
+try:
+    EC.Edicao(copia, OFICIAIS[:-1]).carregar(medidas=med)
+    erro_m2 = None
+except RuntimeError as e:
+    erro_m2 = str(e)
+t('...mas com outra lista de faixas os cortes sugeridos são feitos de novo', erro_m2 == 'cortou de novo')
+EC.gravar_medidas(med, copia, fontes=[['capítulos do vídeo', ['A', 'B'], [0.0, 100.0]]])
+lido_m = EC.ler_medidas(med, copia)
+t('...as listas do vídeo ficam guardadas junto, sem perder o resto',
+  lido_m.get('fontes') == [['capítulos do vídeo', ['A', 'B'], [0.0, 100.0]]] and lido_m.get('envelope') is not None
+  and len(lido_m.get('marcas') or {}) == 1 and lido_m.get('gaps'))
 os.utime(copia, (time.time() + 100, time.time() + 100))
 t('...e áudio trocado não usa as medidas velhas', EC.ler_medidas(med, copia) == {})
-EC.medir_audio, _AC.detect_gaps = _orig_med, _orig_det
+EC.medir_audio, _AC.detect_gaps, EC.Edicao._marcas_iniciais = _orig_med, _orig_det, _orig_ini
 
 # regravar: arquivo aberto noutro programa -> não mexe em nada; troca que falha no meio -> volta tudo
 antes_pasta = sorted(p.name for p in pasta.glob('*.mp3'))
@@ -720,6 +803,27 @@ t(f'...cortes e nomes sugeridos pelos capítulos do vídeo ({getattr(je3.ed, "fo
   je3.ed.nomes() == RAY and len(je3.ed.marcas) == 9
   and getattr(je3.ed, 'fonte_dos_cortes', '') == 'capítulos do vídeo'
   and max(abs(m['pos'] - r) for m, r in zip(je3.ed.marcas, inicios[1:])) < 3)
+# 12.21: reabrir o mesmo disco não lê o vídeo de novo nem refaz os cortes (ficaram guardados)
+leituras_video = []
+_info_orig = app.downloader.get_video_info
+app.downloader.get_video_info = lambda u, *a, **k: (leituras_video.append(u), videos_info.get(u, {}))[1]
+_ini_orig = EC.Edicao._marcas_iniciais
+EC.Edicao._marcas_iniciais = lambda *a: (_ for _ in ()).throw(RuntimeError('cortou de novo'))
+je3.fechar(perguntar=False); esperar2(0.2)
+app._janela_editor = None
+t0_ = time.time()
+J.editar()
+for _ in range(1600):
+    esperar2(0.05)
+    if getattr(app, '_janela_editor', None) is not None:
+        break
+t_reabrir = time.time() - t0_
+je3 = app._janela_editor
+__import__('gc').collect()            # a tela fechada (com as variáveis do Tk) vai embora aqui, na thread principal
+EC.Edicao._marcas_iniciais, app.downloader.get_video_info = _ini_orig, _info_orig
+t(f'reabrir: sem ler o vídeo de novo e com os mesmos cortes e nomes ({t_reabrir:.1f}s)',
+  je3 is not None and not leituras_video and je3.ed.nomes() == RAY and len(je3.ed.marcas) == 9
+  and getattr(je3.ed, 'fonte_dos_cortes', '') == 'capítulos do vídeo')
 je3.v_album.set(''); erros_salvar = []
 _mb_err = __import__('tkinter').messagebox.showerror
 __import__('tkinter').messagebox.showerror = lambda *a, **k: erros_salvar.append(a)
@@ -821,5 +925,36 @@ with np.load(str(med)) as z_:
 t(f'...mas guarda as medidas do disco com os cortes de agora ({ult.get("medidas")}) sem contar no resumo',
   ult.get('sem_mudanca') and med.exists() and len(cortes_med) == 9
   and 'sem_mudanca' not in str(EC.resumo_correcoes(base_app)))
+# 12.21: 🗑 Apagar pedaço também no ✂ Editar disco (a faixa 3 sai e as de depois andam uma casa)
+antes_ap = [str(ID3(str(p_)).get('TIT2')) for p_ in sorted(pasta.glob('*.mp3'))]
+avisos_mb.clear(); app._janela_editor = None
+app.abrir_editor_pasta(str(pasta))
+for _ in range(1600):
+    esperar2(0.05)
+    if getattr(app, '_janela_editor', None) is not None:
+        break
+jp = app._janela_editor
+jp.tabela.selection_set('2'); esperar2(0.3)
+t('Editar disco: botão "🗑 Apagar pedaço"', jp.b_apagar_peca.winfo_exists() and 'Apagar pedaço' in jp.b_apagar_peca.cget('text'))
+jp.apagar_peca(); esperar2(0.2)
+linha2, linha3 = jp.tabela.item('2', 'values'), jp.tabela.item('3', 'values')
+t(f'...o pedaço do cursor fica "— apagado —" (cinza, riscado), o seguinte vira o nº 3 ({linha2[:2]}, {linha3[:2]})',
+  linha2[1] == '— apagado —' and 'apagado' in jp.tabela.item('2', 'tags') and str(linha3[0]) == '3'
+  and 'Desfazer' in jp.b_apagar_peca.cget('text')
+  and any('apagado' in w.cget('text') for f in jp.avisos.winfo_children() for w in f.winfo_children()))
+jp.apagar_peca(); esperar2(0.2)
+t('...de novo: volta', jp.tabela.item('2', 'values')[1] == antes_ap[2] and not jp.ed.apagados)
+jp.apagar_peca(); esperar2(0.1)
+jp.salvar()
+for _ in range(600):
+    esperar2(0.05)
+    if avisos_mb:
+        break
+depois_ap = sorted(pasta.glob('*.mp3'))
+t(f'...salvar: a pasta fica com {len(depois_ap)} faixas, sem a apagada e numeradas sem buraco ({depois_ap[2].name if len(depois_ap) > 2 else ""})',
+  len(depois_ap) == len(antes_ap) - 1 and [str(ID3(str(p_)).get('TIT2')) for p_ in depois_ap] == antes_ap[:2] + antes_ap[3:]
+  and depois_ap[2].name.startswith('03 - ') and str(ID3(str(depois_ap[-1])).get('TRCK')) == f'{len(depois_ap)}/{len(depois_ap)}')
+ult_ap = _json.loads(EC.caminho_correcoes(base_app).read_text(encoding='utf-8').splitlines()[-1])
+t('...e o arquivo de correções anota o pedaço apagado', [x_['faixa'] for x_ in ult_ap.get('pecas_apagadas') or []] == [3])
 root.destroy()
 fim()

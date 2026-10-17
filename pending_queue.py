@@ -16,6 +16,8 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from util import PECA_APAGADA
+
 QUEUE_FILENAME = 'fila_pendentes.json'
 # "Remover" não apaga de vez: o item vai pra cá ("Descartados").
 DESCARTADOS_FILENAME = 'pendentes_descartados.json'
@@ -202,7 +204,9 @@ class PendingQueue:
                 return None
             linhas = len([l for l in (texto or '').splitlines() if l.strip()])
             if (texto or '').lstrip().startswith('#exato'):
-                motivo = f"Cortes conferidos por você no ✂ Editar ({linhas - 1} faixas)"
+                # 12.21: os pedaços apagados no editor não contam
+                apagados = sum(1 for l in texto.splitlines() if l.rstrip().endswith(' ' + PECA_APAGADA))
+                motivo = f"Cortes conferidos por você no ✂ Editar ({linhas - 1 - apagados} faixas)"
             else:
                 motivo = f"Tempos informados por você ({linhas} linhas)"
             item.update({'tempos_usuario': texto, 'reason': motivo})
