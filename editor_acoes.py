@@ -127,21 +127,25 @@ class EditorMixin:
         return self._janela_editor
 
     # ------------------------------------------------------------------ pendência
-    def _nomes_do_video(self, url, avisar):
+    def _nomes_do_video(self, url, avisar, com_estado=False, info=None):
         """
         Listas de nomes que o próprio vídeo traz: [(fonte, nomes, inicios ou None)] - capítulos,
         tracklist da descrição e, se nenhuma das duas tem tempos, a lista com tempos de um comentário.
-        Sem rede (ou com erro), lista vazia: o editor abre do mesmo jeito.
+        Sem rede (ou com erro), lista vazia: o editor abre do mesmo jeito. com_estado=True devolve
+        (listas, deu_pra_ler_o_vídeo) - só o que foi lido de verdade fica guardado. `info`: os dados do
+        vídeo já lidos (não lê de novo).
         """
         from catalogo import inicios_de_texto, pistas_do_video
         from youtube_chapters_extractor import YouTubeChaptersExtractor
         fontes = []
         try:
-            avisar("Lendo o vídeo (capítulos e descrição, pros nomes das músicas)...")
-            info = self.downloader.get_video_info(url) or {}
+            if not info:
+                avisar("Lendo o vídeo (capítulos e descrição, pros nomes das músicas)...")
+                info = self.downloader.get_video_info(url) or {}
         except Exception:
             info = {}
         dur = info.get('duration')
+        lido = bool(info)       # comentários que falharam por rede não ficam guardados como "nenhum"
         try:
             caps = YouTubeChaptersExtractor.extract_from_video_info(info) if info else None
             if caps:
@@ -167,7 +171,9 @@ class EditorMixin:
                     fontes.append(('comentário do vídeo', [d['title'] for d in melhor],
                                    [d['start_time'] for d in melhor]))
             except Exception:
-                pass
+                lido = False
+        if com_estado:
+            return fontes, lido
         return fontes
 
     def abrir_editor_pendencia(self, item):
@@ -213,18 +219,29 @@ class EditorMixin:
                 finally:
                     shutil.rmtree(temp, ignore_errors=True)
                     self._em_uso_pelo_editor().discard(temp.name)
-            fontes = self._nomes_do_video(url, avisar)
-            avisar("Medindo o áudio, os silêncios e as mudanças no som (alguns segundos)...")
+            # 12.21: as listas do vídeo (internet) são lidas AO MESMO TEMPO que o áudio é medido, e
+            # ficam guardadas com as medidas - reabrir o mesmo disco não lê o vídeo de novo
+            medidas = EC.arquivo_de_medidas(base, url)
+            guardadas = EC.ler_medidas(medidas, audio).get('fontes') if medidas else None
+            leitura = {}
+            if guardadas is None:
+                def ler_video():
+                    leitura['fontes'], leitura['ok'] = self._nomes_do_video(url, avisar, com_estado=True)
+                fio = threading.Thread(target=ler_video, daemon=True)
+                fio.start()
+            avisar("Medindo o áudio e os silêncios (alguns segundos)...")
             ed = EC.Edicao(audio, dados.get('tracks') if confirmado else [], titulo=titulo)
-            ed.carregar(medidas=EC.arquivo_de_medidas(base, url))
+            ed.carregar(medidas=medidas)
+            if guardadas is None:
+                fio.join()
+                fontes = leitura.get('fontes') or []
+                if leitura.get('ok') and medidas:
+                    EC.gravar_medidas(medidas, audio, fontes=[list(f) for f in fontes])
+            else:
+                fontes = [tuple(f) for f in guardadas]
             if not confirmado:
-                com_tempos = next((f for f in fontes if f[2]), None)
-                if com_tempos:
-                    # sem Discogs confirmado: os cortes sugeridos vêm dos tempos do vídeo (ajustados à pausa)
-                    ed.fonte_dos_cortes = com_tempos[0]
-                    ed.nomes_fixos = list(com_tempos[1])
-                    ed.marcas = ed.marcas_dos_tempos(com_tempos[2][1:])
-                    ed.rotular()
+                # sem Discogs confirmado: os cortes sugeridos vêm dos tempos do vídeo (ajustados à pausa)
+                EC.usar_tempos_do_video(ed, fontes)
             if confirmado:
                 ed.adicionar_candidatos('Discogs', [t.get('title') for t in dados.get('tracks') or []])
             elif dados.get('tracks') and (item.get('confidence_pct') or 0) >= PALPITE_MIN_PCT:
@@ -253,9 +270,10 @@ class EditorMixin:
             novo = self.pending_queue.informar_tempos(item['id'], ed.texto_tempos(), extra=extra)
             if not novo:
                 raise RuntimeError("o disco não está mais em Precisam de você")
-            self.log(f"✂️  Cortes conferidos por você ({len(ed.marcas) + 1} faixas): "
+            n_faixas = len(ed.pecas_que_ficam())                  # sem os pedaços apagados
+            self.log(f"✂️  Cortes conferidos por você ({n_faixas} faixas): "
                      f"{(item.get('video_title') or '')[:60]} - na fila")
-            self._reg('PENDENTE', f"cortes do editor | {len(ed.marcas) + 1} faixas | {url}")
+            self._reg('PENDENTE', f"cortes do editor | {n_faixas} faixas | {url}")
             self._anotar_correcoes(ed, {'url': url, 'motivo': item.get('kind'), 'confirmado': confirmado})
             self._enfileirar_pendencias([novo])
 
@@ -290,6 +308,17 @@ class EditorMixin:
             pass
 
     # ------------------------------------------------------------------ disco já cortado
+    def abrir_editor_track_n(self, item):
+        """"Gravados com Track N" (12.21): abre o ✂ Editar disco na pasta do disco gravado; ao salvar lá,
+        o lembrete sai da lista."""
+        pasta = item.get('pasta')
+        if not pasta or not EC.mp3s_da_pasta(pasta):
+            messagebox.showinfo("Editar disco", f"Não achei os MP3 deste disco em\n{pasta}\n\nSe você moveu a "
+                                                f"pasta, use \"✂ Editar disco\" na tela principal e depois "
+                                                f"\"Remover\" este item.", parent=self.root)
+            return None
+        return self.abrir_editor_pasta(pasta)
+
     def abrir_editor_pasta(self, pasta=None):
         base = self.config.get_output_directory()
         if pasta is None:
@@ -323,7 +352,7 @@ class EditorMixin:
             for d in info['duracoes'][:-1]:
                 acc += d
                 marcas.append({'pos': acc, 'tipo': 'usuario'})
-            avisar("Medindo o áudio, os silêncios e as mudanças no som (alguns segundos)...")
+            avisar("Medindo o áudio e os silêncios (alguns segundos)...")
             ed.carregar(marcas=marcas)
             ed.adicionar_candidatos('nomes de antes', info['nomes'])
             rid = (info.get('album') or {}).get('DISCOGS_RELEASE_ID')
@@ -351,7 +380,7 @@ class EditorMixin:
             self._anotar_correcoes(ed, {'pasta': pasta.name})
 
             def regravar(avisar):
-                avisar(f"Recortando e gravando as {len(ed.marcas) + 1} faixas...")
+                avisar(f"Recortando e gravando as {len(ed.pecas_que_ficam())} faixas...")
                 r = EC.regravar_pasta(pasta, base, ed, info, log=self.log)
                 self._reg('EDICAO', f"disco reeditado | {r['faixas']} faixas | {pasta} | antes em {r['antes']}")
                 return r
@@ -361,6 +390,14 @@ class EditorMixin:
                 if je is not None:
                     je.salvo()                # só agora a tela fecha: se der erro, as marcas continuam lá
                 soltar_juntado()
+                pq = getattr(self, 'pending_queue', None)
+                if pq is not None and pq.tirar_track_n(pasta):
+                    # 12.21: o lembrete "Gravados com Track N" deste disco sai da lista
+                    self.log(f"   🧹 Saiu de \"Gravados com Track N\": {pasta.name}")
+                    try:
+                        self._refresh_main_buttons_state()
+                    except Exception:
+                        pass
                 messagebox.showinfo("Editar disco", f"Pronto: {r['faixas']} faixas em\n{pasta}\n\nOs arquivos "
                                                     f"de antes estão em\n{r['antes']}", parent=self.root)
             self._preparar_em_segundo_plano("Gravando o disco editado", regravar, pronto)

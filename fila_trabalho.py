@@ -203,7 +203,8 @@ class FilaMixin:
             return None
         enfileirados = 0
         with fila.em_lote():
-            for pendente in list(itens):
+            # 12.21: "Gravados com Track N" já está gravado - não vai pra fila (os nomes vão no ✂ Editar)
+            for pendente in [i for i in itens if i.get('kind') != 'track_n']:
                 novo = fila.adicionar(
                     'pendencia',
                     pendente.get('url', ''),
@@ -416,6 +417,7 @@ class FilaMixin:
         Devolve se deu certo.
         """
         self._fila_item_ok = True       # vira False se o item for pra "Precisam de você"
+        self._inicio_item_fila = time.time()
         self._notas_corte = {}          # o motivo de uma falha é sempre o DESTE item
         if item.get('tipo') == 'pendencia':
             guardado = item.get('pendencia_item')
@@ -455,7 +457,10 @@ class FilaMixin:
             fila_p = getattr(self, 'pending_queue', None)
             if not fila_p:
                 return False
-            alvos = [i for i in fila_p.items if i.get('url') == url]
+            # 12.21: o lembrete "Gravados com Track N" que ESTA rodada acabou de anotar fica
+            desde = getattr(self, '_inicio_item_fila', None)
+            alvos = [i for i in fila_p.items if i.get('url') == url and not (
+                i.get('kind') == 'track_n' and (desde is None or i.get('gravado_ts', 0) >= desde))]
             for a in alvos:
                 fila_p.remove(a['id'])
             if alvos:
@@ -585,9 +590,13 @@ class FilaMixin:
 
         if hasattr(self, 'pendentes_button'):
             try:
-                n = len(self.pending_queue.items) if self.pending_queue else 0
-                self.pendentes_button.config(
-                    text=f"⏳  Precisam de você ({n})" if n else "⏳  Precisam de você")
+                itens = list(self.pending_queue.items) if self.pending_queue else []
+                k = sum(1 for i in itens if i.get('kind') == 'track_n')     # "Gravados com Track N" (12.21)
+                n = len(itens) - k
+                texto = f"⏳  Precisam de você ({n})" if n else "⏳  Precisam de você"
+                if k:
+                    texto = f"⏳  Precisam de você ({n} + {k} Track N)"
+                self.pendentes_button.config(text=texto)
             except Exception:
                 pass
 

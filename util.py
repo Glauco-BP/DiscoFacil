@@ -7,6 +7,10 @@ import os
 import re
 
 
+# ✂ Editar: nome do pedaço apagado nos cortes salvos (#exato) - não é gravado (12.21)
+PECA_APAGADA = '#apagado'
+
+
 def sanitize(name: str) -> str:
     """Remove caracteres inválidos e limpa formatação"""
     # Remove caracteres inválidos

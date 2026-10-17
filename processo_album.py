@@ -23,6 +23,7 @@ dados_para_corte(); as faixas vão em 'M:SS' (a duração exata, quando
 existe, em 'duration_seconds').
 """
 import os
+import re
 import shutil
 import time
 from pathlib import Path
@@ -30,6 +31,7 @@ from typing import Optional
 
 import edicao_cortes
 import encaixe as ENC
+import gravar_sozinho
 import nomes
 import saida
 from ajustes import CutTuning
@@ -40,11 +42,16 @@ from corte_audio import esquecer_medidas
 from corte_estrategias import match_durations_to_tracks
 from pontuacao import (avaliar_identificacao, mesmo_disco, score_discogs_candidate, texto_identificacao,
                        titles_similar)
-from util import onde_quebrou, segundos_da_faixa
+from util import PECA_APAGADA, onde_quebrou, segundos_da_faixa
 from versao import APP_TITULO
 from youtube_chapters_extractor import YouTubeChaptersExtractor
 
 TAMANHO_MINIMO_ALBUM = 100_000
+# 12.21: aviso nas tags (TXXX:DISCOFACIL_NOTA) do disco gravado sozinho, sem o Discogs
+NOTA_GRAVADO_SOZINHO = {
+    'P1': 'gravado sozinho sem o Discogs: nomes da lista do vídeo - conferir',
+    'P2': 'gravado sozinho sem o Discogs: sem os nomes (Track N) - pôr no ✂ Editar disco',
+}
 # Durações do Deezer/iTunes só valem se a soma delas bater com o áudio (mesma gravação).
 DEEZER_SOMA_FOLGA_SEG = 20.0
 DEEZER_SOMA_FOLGA_FRACAO = 0.05      # bytes: menos que isso é download quebrado
@@ -176,6 +183,13 @@ class AlbumMixin:
                 kind = 'baixa_confianca'
                 reason = (f"Confiança {confianca}% abaixo do mínimo automático "
                           f"({self.AUTO_PROCESS_MIN_CONFIDENCE_PCT}%) - score={escolhido.get('score', 0):.0f}")
+            if kind in ('nao_encontrado', 'baixa_confianca'):
+                # 12.21: sem o Discogs, o disco que o vídeo explica (ou de pausas claras) é gravado sozinho
+                self._motivo_nao_gravou_sozinho = None
+                if self._tentar_gravar_sozinho(url, video_info):
+                    return
+                if self._motivo_nao_gravou_sozinho:
+                    reason += f" · não gravei sozinho: {self._motivo_nao_gravou_sozinho}"
             self.pending_queue.add(kind=kind, url=url, video_title=video_info['title'],
                                    title_artist=title_artist, title_album=title_album, year=str(year or ''),
                                    confidence_pct=confianca, reason=reason, discogs_data=escolhido)
@@ -263,7 +277,7 @@ class AlbumMixin:
     def _download_and_process(self, url, video_info, artist, album, year,
                               final_source, final_tracks, has_timestamps,
                               discogs_data, discogs_candidates=None, from_pending=False,
-                              allow_cross_validation=None, tempos_usuario=None):
+                              allow_cross_validation=None, tempos_usuario=None, gravado_sozinho=None):
         """
         Baixa, corta e grava. Devolve True se o álbum ficou pronto.
 
@@ -274,10 +288,12 @@ class AlbumMixin:
         certo, porque só quem caiu lá por CORTE que falhou deve usá-lo.
         tempos_usuario: texto com os tempos que o usuário informou em
         "Precisam de você" - vale antes de tudo.
+        gravado_sozinho: 'P1' / 'P2' - os cortes (#exato) vêm de _tentar_gravar_sozinho (12.21).
         """
         if allow_cross_validation is None:
             allow_cross_validation = from_pending
         self._notas_corte = {}
+        self._nota_das_faixas = NOTA_GRAVADO_SOZINHO.get(gravado_sozinho)
 
         self.log("\n6. Baixando áudio...")
         temp_dir = Path(self.config.get_output_directory()) / "_temp"
@@ -367,10 +383,11 @@ class AlbumMixin:
                          "\"Precisam de você\" (abra o ✂ Editar de novo e salve)")
                 final_source, capitulos, discogs_candidates = 'editor', None, None
             if lista:
+                n_faixas = sum(1 for x in lista if x['title'] != PECA_APAGADA)     # sem os pedaços apagados
                 self.log(f"\n✍️  {'Cortes marcados por você no ✂ Editar' if exato else 'Tempos informados por você'}: "
-                         f"{len(lista)} faixas")
+                         f"{n_faixas} faixas")
                 self._reg('FONTE', f"{'cortes do editor' if exato else 'tempos informados pelo usuário'} | "
-                                   f"{len(lista)} faixas")
+                                   f"{n_faixas} faixas")
                 ok = nas_posicoes(lista, marcar=False, exato=exato)
                 if exato and not ok:
                     # os cortes do editor são a última palavra: sem eles, nada de outro corte por conta própria
@@ -428,6 +445,8 @@ class AlbumMixin:
             edicao_cortes.esquecer_audio(self.config.get_output_directory(), url)
             self.log("\n✓ Processamento concluído!")
             self.log(f"   📁 {output_dir}")
+            self._lembrar_track_n(url, video_info, artist, album, year, output_dir,
+                                  None if gravado_sozinho else tempos_usuario)
             self._cleanup_temp_dir(temp_dir)
             return True
 
@@ -445,6 +464,7 @@ class AlbumMixin:
             except Exception as e:
                 self.log(f"   ⚠️  Erro ao deletar pasta: {e}")
         self._reg('NOTAS', self._texto_notas(discogs_data, notas, 'recusado'))
+        guardado = None
         try:
             # guardado pro ✂ Editar de "Precisam de você" (sem baixar de novo)
             guardado = edicao_cortes.guardar_audio(self.config.get_output_directory(), url, audio_file)
@@ -470,6 +490,12 @@ class AlbumMixin:
                 motivo = (f"Provavelmente é outro disco: só {acertos} de {fronteiras} trocas de faixa do Discogs "
                           f"caem num silêncio do áudio - use ✏️ Corrigir busca")
                 self.log(f"   🤔 {motivo}")
+                # 12.21: sem o Discogs, o disco que o vídeo explica (ou de pausas claras) é gravado sozinho
+                if guardado and self._tentar_gravar_sozinho(url, video_info, audio=guardado):
+                    self._cleanup_temp_dir(temp_dir)
+                    return True
+                if getattr(self, '_motivo_nao_gravou_sozinho', None):
+                    motivo += f" · não gravei sozinho: {self._motivo_nao_gravou_sozinho}"
             self._pendencia_de_falha(
                 kind, url, video_info, artist, album, year, discogs_data,
                 motivo + (" - use ✂ Editar pra ouvir e acertar os cortes, ou Enfileirar pra processar mesmo "
@@ -1024,6 +1050,9 @@ class AlbumMixin:
                 self._notas_corte = dict(getattr(self, '_notas_corte', {}) or {}, motivo=motivo)
                 return None
 
+            if getattr(self, '_nota_das_faixas', None):
+                for c in cutter.cuts or []:
+                    c['nota'] = self._nota_das_faixas        # 12.21: gravado sozinho, sem o Discogs
             estimadas = [c['track'] for c in cutter.cuts or [] if c.get('corte_estimado')]
             if estimadas:
                 self.log(f"   ⚠️  Faixa(s) {estimadas}: corte estimado pela duração (músicas emendadas) - "
@@ -1049,6 +1078,119 @@ class AlbumMixin:
             return True
         except Exception as e:
             self.log(f"✗ Erro na separação: {e} [{onde_quebrou(e)}]")
+            return None
+
+    # ------------------------------------------------------------------ gravar sozinho (12.21)
+    def _tentar_gravar_sozinho(self, url, video_info, audio=None) -> bool:
+        """
+        Disco que o Discogs não confirmou (não achou, confiança baixa, talvez outro disco): antes de ir
+        pra "Precisam de você", prepara os cortes como o ✂ Editar e grava sozinho se passar nas travas
+        de gravar_sozinho.avaliar (proposta 1: com os nomes da lista do vídeo, marcados "conferir";
+        proposta 2: "Track N", e o disco entra em "Gravados com Track N"). Sem `audio`, baixa e guarda
+        (o ✂ Editar já abre sem baixar). Devolve True se gravou; senão o motivo fica em
+        self._motivo_nao_gravou_sozinho. Nunca derruba o álbum: um erro aqui só manda pra pendências.
+        """
+        self._motivo_nao_gravou_sozinho = None
+        try:
+            vt = (video_info or {}).get('title') or ''
+            art, alb = self._extract_artist(vt).strip(), self._extract_album(vt).strip()
+            ano = str(self._extract_year(vt) or '')
+            if not art or not alb or not self._titulo_tem_artista_e_album(vt) or \
+                    gravar_sozinho.avaliar_titulo(art, alb):
+                return False                  # sem "Artista - Álbum" no título, nem baixa: fica pra você
+            base = self.config.get_output_directory()
+            self.log("\n🤖 Sem o Discogs: confiro se dá pra gravar sozinho (cortes em pausas claras e a lista do vídeo)")
+            if audio is None:
+                audio = self._audio_pra_conferir(url)
+                if audio is None:
+                    self.log("   ✋ Não deu pra baixar o áudio - fica em Precisam de você")
+                    return False
+            medidas = edicao_cortes.arquivo_de_medidas(base, url)
+            guardadas = edicao_cortes.ler_medidas(medidas, audio).get('fontes') if medidas else None
+            if guardadas is None:
+                fontes, lido = self._nomes_do_video(url, lambda *a, **k: None, com_estado=True, info=video_info)
+                if lido and medidas:
+                    edicao_cortes.gravar_medidas(medidas, audio, fontes=[list(f) for f in fontes])
+            else:
+                fontes = [tuple(f) for f in guardadas]
+            ed = edicao_cortes.edicao_sem_discogs(audio, f"{art} - {alb}", fontes, medidas=medidas)
+            r = gravar_sozinho.avaliar(ed, fontes, art, alb)
+            ja = Path(base) / saida.nome_da_pasta(art, alb, ano)
+            if r['decisao'] and ja.exists() and list(ja.glob('*.mp3')):
+                # o mesmo vídeo de novo (canal, fila): o disco já foi gravado - não grava outro "(2)"
+                self.log(f"\n⏭️  Esse disco já foi gravado em {ja} - não gravo de novo")
+                edicao_cortes.esquecer_audio(base, url)
+                return True
+            if not r['decisao']:
+                self._motivo_nao_gravou_sozinho = r['motivo']
+                self.log(f"   ✋ Não gravei sozinho: {r['motivo']} - fica em Precisam de você "
+                         f"(o áudio já está guardado pro ✂ Editar)")
+                self._reg('SOZINHO', f"não gravou | {r['motivo']} | {url}")
+                return False
+            self.log(f"   ✅ Gravo sozinho: {r['motivo']} ({len(r['nomes'])} faixas)"
+                     + (" - nomes a conferir" if r['decisao'] == 'P1' else " - nomes \"Track N\""))
+            self._reg('SOZINHO', f"{r['decisao']} | {r['motivo']} | {len(r['nomes'])} faixas | '{art}' - '{alb}' | {url}")
+            texto = gravar_sozinho.texto_dos_cortes(ed, r['nomes'])
+            dados = dados_para_corte({}, art, alb, ano, fonte='YouTube')
+            ok = self._download_and_process(url, video_info, art, alb, ano, 'editor', [], False, dados,
+                                            from_pending=True, tempos_usuario=texto, gravado_sozinho=r['decisao'])
+            if not ok:
+                self._motivo_nao_gravou_sozinho = "o corte não pôde ser gravado"
+            return bool(ok)
+        except Exception as e:
+            self._motivo_nao_gravou_sozinho = None
+            self.log(f"   ⚠️  Gravar sozinho pulado ({str(e)[:80]} [{onde_quebrou(e)}]) - fica em Precisam de você")
+            return False
+        finally:
+            self._nota_das_faixas = None
+
+    def _audio_pra_conferir(self, url):
+        """O áudio do vídeo, guardado em .audios_pasta_pendencia (o mesmo que o ✂ Editar usa): o já
+        guardado, o baixado antes (antecipado) ou baixado agora. None se não deu."""
+        base = self.config.get_output_directory()
+        guardado = edicao_cortes.audio_guardado(base, url)
+        if guardado:
+            return guardado
+        temp = edicao_cortes.pasta_audios(base) / edicao_cortes.nome_unico(
+            f"_baixando_{edicao_cortes.id_do_video(url) or 'video'}_")
+        temp.mkdir(parents=True, exist_ok=True)
+        try:
+            arq = None
+            if getattr(self, 'pre_download', None):
+                try:
+                    arq = self.pre_download.pegar(url, mover_para=str(temp))
+                except Exception:
+                    arq = None
+            if not arq:
+                self.log("   ⬇️  Baixando o áudio pra conferir os cortes...")
+                arq = saida.baixar_audio(self.downloader, url, temp, self.log, TAMANHO_MINIMO_ALBUM)
+            return edicao_cortes.guardar_audio(base, url, arq) if arq else None
+        finally:
+            shutil.rmtree(temp, ignore_errors=True)
+
+    def _lembrar_track_n(self, url, video_info, artist, album, year, output_dir, tempos_usuario=None):
+        """
+        12.21: disco gravado com faixas "Track N" (sem nome) entra em "Precisam de você" → "Gravados com
+        Track N", pra você não esquecer de pôr os nomes (no ✂ Editar disco). Não vale pro que foi salvo
+        no ✂ Editar (os nomes são os que você deixou).
+        """
+        pq = getattr(self, 'pending_queue', None)
+        if pq is None or not output_dir or (tempos_usuario or '').lstrip().startswith('#exato'):
+            return None
+        try:
+            arqs = sorted(Path(output_dir).glob('*.mp3'))
+            sem_nome = [a for a in arqs if re.fullmatch(r'\d+ - Track \d+', a.stem)]
+            if not sem_nome:
+                return None
+            item = pq.anotar_track_n(url, (video_info or {}).get('title') or '', str(output_dir), len(sem_nome),
+                                     len(arqs), title_artist=artist or '', title_album=album or '',
+                                     year=str(year or ''))
+            self.log(f"   📝 {len(sem_nome)} de {len(arqs)} faixa(s) com \"Track N\": o disco está em \"Precisam de "
+                     f"você\" → \"Gravados com Track N\", pra você pôr os nomes (✂ Editar)")
+            self._reg('TRACK_N', f"{len(sem_nome)} de {len(arqs)} faixas sem nome | {output_dir} | {url}")
+            return item
+        except Exception as e:
+            self.log(f"   ⚠️  Não consegui anotar em \"Gravados com Track N\": {str(e)[:80]}")
             return None
 
     def _track_n_longe_do_discogs(self, cortes, n_discogs) -> Optional[str]:

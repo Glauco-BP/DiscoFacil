@@ -327,9 +327,6 @@ def _foto_editor(root, app, main, J):
     novo = [i for i in app.pending_queue.items if i.get('url') == url]
     je = abrir(novo[0]) if novo else None
     if je is not None:
-        # exemplo do roxo: onde o som muda dentro da faixa 3 (ilustração)
-        a3, b3 = je.ed.pecas()[2]
-        je.ed.sugestoes_som = [a3 + (b3 - a3) * 0.55]
         je.redesenhar(); esperar(root, 0.4)
         fotos['editor'] = recorte(root, je.win, 'editor')
         je.ed.mudou = False
@@ -588,6 +585,11 @@ def montar_pdf(fotos, destino, versao):
     # ------------------------------------------------------------ 7. precisam de você
     h.append(T('7. Precisam de você'))
     h.append(P('Discos que o programa não quis decidir sozinho. Nada foi gravado errado: ele espera você.'))
+    h.append(P('Antes de pôr aqui um disco "Não achado", com "Confiança baixa" ou "Talvez outro disco", o programa '
+               'confere os cortes como o ✂ Editar faria. Se todos caem em pausas claras e nenhum pedaço tem menos '
+               'de 90 s, ele grava sozinho: com os nomes da lista do vídeo (capítulos, descrição ou comentário), '
+               'marcados "conferir" nas tags, ou com "Track N" quando o vídeo não traz a lista. Se não, o disco '
+               'vem pra cá com o motivo ("não gravei sozinho: ...") e o áudio já guardado.'))
     h.append(img('pendentes', maxh=8.5 * cm))
     h.append(tabela([
         ['Motivo', 'O que quer dizer', 'O que fazer'],
@@ -607,6 +609,9 @@ def montar_pdf(fotos, destino, versao):
         ['Download falhou', 'O vídeo saiu do ar, ficou privado ou bloqueado.', '<b>Buscar outra versão</b>.'],
         ['Discogs não respondeu', 'O Discogs limitou os pedidos por um tempo.', 'Nada: volta sozinho pra fila '
          'em 10 minutos (até 3 vezes).'],
+        ['Gravados com Track N', 'O disco <b>já foi gravado</b>, mas sem os nomes ("Track 1", "Track 2"...). '
+         'Só aparece neste filtro, não em "Todos os motivos".', '<b>✂ Editar</b>: abre o disco gravado (✂ Editar '
+         'disco) pra pôr os nomes. Ao salvar, ele sai da lista.'],
     ], [3.3 * cm, 6.4 * cm, 7.3 * cm]))
     h.append(PageBreak())
     h.append(S('Como usar a lista'))
@@ -656,6 +661,10 @@ def montar_pdf(fotos, destino, versao):
         ['⇤ 0,5s · 0,5s ⇥', 'Empurra o corte escolhido meio segundo.'],
         ['Ao silêncio mais perto', 'Leva o corte à pausa mais próxima.'],
         ['Apagar marca', 'Tira o corte escolhido: as duas músicas viram uma (tecla Del).'],
+        ['🗑 Apagar pedaço', 'Em cima da tabela. Tira o pedaço onde está o cursor (um silêncio, um defeito, uma '
+         'música): fica cinza e riscado, não é gravado, e as faixas de depois andam uma casa. Clique de novo '
+         'pra trazer de volta. Pra tirar um trecho do meio de uma música, marque um corte de cada lado e '
+         'apague o pedaço do meio.'],
         ['Tabela', 'As músicas com início e duração; a coluna Discogs é a duração que o Discogs dá. Clique '
          'pra ir à música.'],
         ['Nome (duplo clique)', 'Escreva outro, ou escolha na lista os nomes achados no Discogs, nos capítulos, '
@@ -665,13 +674,11 @@ def montar_pdf(fotos, destino, versao):
     ], [4.2 * cm, 12.8 * cm]))
     h.append(P('Em cima da tabela aparece se falta ou sobra corte (a música longa demais fica em vermelho) e '
                'quantos estão estimados.'))
-    h.append(S('As guias: ajudam a achar o corte, não cortam nada'))
+    h.append(S('A guia amarela: ajuda a achar o corte, não corta nada'))
     h.append(L('<font color="#A16207"><b>Amarelo</b></font>: onde o Discogs poria cada corte, somando as '
                'durações das músicas (e a duração de cada uma, em cima). Um tracinho amarelo sem corte perto '
                'costuma ser o corte que falta.'))
-    h.append(L('<font color="#7C3AED"><b>Roxo</b></font>: onde o som muda de repente, sem pausa (outro '
-               'instrumento, outro andamento). Pode ser a troca de duas músicas emendadas - ou só um solo. '
-               'Ouça ali. Clicar perto de uma guia leva o cursor exatamente pra ela.'))
+    h.append(L('Clicar perto de uma guia leva o cursor exatamente pra ela.'))
     h.append(S('Você tem a última palavra'))
     h.append(P('Se você apagar um corte, juntar músicas ou deixar menos faixas do que o Discogs diz, o disco sai '
                'assim, com os nomes da tabela. Os nomes acompanham os cortes: juntar duas músicas dá "A / B"; '

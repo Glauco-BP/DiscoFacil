@@ -25,8 +25,10 @@ MOTIVOS = {
     'outro_disco': 'Talvez outro disco',
     'falha_download': 'Download falhou',
     'erro_discogs': 'Discogs não respondeu',
+    'track_n': 'Gravados com Track N',          # 12.21: já gravado; falta pôr os nomes (✂ Editar)
 }
 TODOS = 'Todos os motivos'
+TRACK_N = 'track_n'    # "Gravados com Track N": só aparece no filtro dele, não em "Todos os motivos" (12.21)
 COL_YT = '#5'          # coluna "▶ YouTube" (a 5ª de dados)
 
 
@@ -219,6 +221,8 @@ class JanelaPendentes:
         motivo = self.filtro.get()
         if motivo and motivo != TODOS and not motivo.startswith(rotulo_motivo(it) + ' ('):
             return False
+        if (not motivo or motivo == TODOS) and it.get('kind') == TRACK_N and not self.vendo_descartados:
+            return False                # já gravado: fica só no filtro dele
         termo = self.busca.get().strip().lower()
         if termo:
             alvo = ' '.join(str(it.get(k) or '') for k in ('video_title', 'reason', 'url',
@@ -283,6 +287,10 @@ class JanelaPendentes:
         opcoes = [TODOS] + [f"{r} ({n})" for r, n in sorted(contagem.items())]
         atual = self.filtro.get()
         self.combo['values'] = opcoes
+        if atual == TODOS and not self.vendo_descartados and itens and all(
+                it.get('kind') == TRACK_N for it in itens):
+            # só há lembretes "Gravados com Track N": mostra o filtro deles (senão a lista abriria vazia)
+            atual = MOTIVOS[TRACK_N] + ' ('
         if atual != TODOS:
             base = atual.rsplit(' (', 1)[0]
             novo = next((o for o in opcoes if o.startswith(base + ' (')), None)
@@ -290,7 +298,7 @@ class JanelaPendentes:
 
     def _cabecalho(self):
         """Título, explicação e botão de alternância conforme a vista atual."""
-        n = len(self.fila_p.items)
+        n = len([i for i in self.fila_p.items if i.get('kind') != TRACK_N])
         d = len(self.fila_p.descartados)
         if self.vendo_descartados:
             self.titulo.config(text=f"🗑  Descartados ({d})")
@@ -301,9 +309,14 @@ class JanelaPendentes:
         else:
             self.titulo.config(text=f"⚠️  {n} álbum(ns) precisam de você")
             self.btn_descartados.config(text=f"🗑 Descartados ({d})")
-            self.explica.config(text="Álbuns que o programa não baixou sozinho - nada foi gravado. "
-                                     "Selecione (clique, Ctrl+clique, Shift+clique) e use os botões "
-                                     "embaixo. Clique em \"▶ abrir\" pra ver o vídeo; ⏳ = já está na fila.")
+            if self.filtro.get().startswith(MOTIVOS[TRACK_N] + ' ('):
+                self.explica.config(text="Discos JÁ GRAVADOS com nomes \"Track N\": selecione e use \"✂ Editar\" "
+                                         "pra pôr os nomes (abre o ✂ Editar disco). Ao salvar lá, o disco sai "
+                                         "desta lista.")
+            else:
+                self.explica.config(text="Álbuns que o programa não baixou sozinho - nada foi gravado. "
+                                         "Selecione (clique, Ctrl+clique, Shift+clique) e use os botões "
+                                         "embaixo. Clique em \"▶ abrir\" pra ver o vídeo; ⏳ = já está na fila.")
             self.win.title(f"Precisam de você ({n})")
 
     def _ordenar(self, chave):
@@ -338,11 +351,13 @@ class JanelaPendentes:
             if self.acoes_desc.winfo_manager():
                 self.acoes_desc.pack_forget()
                 self.acoes_pend.pack(side='right')
-            self.b_enfileirar.config(text=f"➕ Enfileirar ({n})", state='normal' if n else 'disabled')
+            # "Gravados com Track N" já está gravado: não vai pra fila nem refaz a busca, só ✂ Editar
+            gravado = any(it.get('kind') == 'track_n' for it in sel)
+            self.b_enfileirar.config(text=f"➕ Enfileirar ({n})", state='normal' if n and not gravado else 'disabled')
             self.b_remover.config(text=f"🗑 Remover ({n})", state='normal' if n else 'disabled')
             self.b_buscar.config(state='normal' if n == 1 else 'disabled')
-            self.b_corrigir.config(state='normal' if n == 1 else 'disabled')
-            self.b_tempos.config(state='normal' if n == 1 else 'disabled')
+            self.b_corrigir.config(state='normal' if n == 1 and not gravado else 'disabled')
+            self.b_tempos.config(state='normal' if n == 1 and not gravado else 'disabled')
             self.b_editar.config(state='normal' if n == 1 and sel[0].get('source_type') != 'playlist'
                                  else 'disabled')
         self.b_motivo.config(state='normal' if n else 'disabled')
@@ -402,7 +417,7 @@ class JanelaPendentes:
 
     def enfileirar(self):
         """Manda os selecionados pra fila única (via app._enfileirar_pendencias)."""
-        sel = self.selecionados()
+        sel = [it for it in self.selecionados() if it.get('kind') != 'track_n']     # esses já estão gravados
         if not sel or self.vendo_descartados:
             return
         n = self.app._enfileirar_pendencias(sel)
@@ -570,6 +585,8 @@ class JanelaPendentes:
         sel = self.selecionados()
         if len(sel) != 1 or self.vendo_descartados:
             return None
+        if sel[0].get('kind') == 'track_n':
+            return self.app.abrir_editor_track_n(sel[0])       # o disco já gravado: ✂ Editar disco
         return self.app.abrir_editor_pendencia(sel[0])
 
     def informar_tempos(self, texto=None):

@@ -18,6 +18,9 @@ process_single_video
   2. artista/álbum/ano do título (descrição, Groq se faltar) (identificacao_titulo.py, nomes.py, groq_ajuda.py)
   3. Discogs: busca, pontua as edições, nota de identificação (catalogo.py, pontuacao.py)
        nota baixa / não achou / limite de pedidos → "Precisam de você" (pending_queue.py)
+         (12.21: antes, nota baixa e não achou baixam o áudio e tentam gravar sozinho - cortes em
+         pausas claras, nenhum pedaço < 90 s, nomes da lista do vídeo ou "Track N":
+         processo_album._tentar_gravar_sozinho, gravar_sozinho.avaliar)
        já no acervo → pula                                   (acervo_index.py)
   4. baixa o áudio (ou usa o antecipado)                     (saida.py, pre_download.py)
   5. afina durações pelo MusicBrainz                          (processo_album._refine_durations_with_musicbrainz)
@@ -35,6 +38,8 @@ process_single_video
        vídeo, se for a lista DESTE disco (processo_album._tempos_dos_comentarios,
        corte nas posições: corte_estrategias.cut_at_positions)
      falhou → "Precisam de você" com o motivo e as edições candidatas
+       ("talvez outro disco": antes tenta gravar sozinho, como acima)
+       gravou com "Track N" → lembrete "Gravados com Track N" (pending_queue.anotar_track_n)
        (o áudio fica em .audios_pasta_pendencia; "✂ Editar" abre a tela "Conferir cortes" e
        o que você salvar volta como tempos #exato: cut_at_positions(exato=True), sem ajuste;
        sem Discogs confirmado, o item vai com 'editor_sem_discogs' e o artista/álbum da tela;
@@ -96,6 +101,7 @@ tentativas de corte do álbum (`corte_audio.medidas_do_arquivo`).
 | `groq_ajuda.py` | Groq: só sugestão, sempre confirmada por outra coisa. |
 | **Processo** | |
 | `processo_album.py` | Modo álbum (acima), pendências de vídeo e o caminho sem Discogs. |
+| `gravar_sozinho.py` | 12.21: as travas pra gravar sozinho o disco que o Discogs não confirmou (proposta 1: nomes da lista do vídeo; proposta 2: "Track N"), funções puras sobre a `Edicao`. |
 | `processo_playlist.py` | Modo playlist: um vídeo por faixa, casando com a tracklist oficial. |
 | `escolha_edicao.py` | Identificação × encaixe: qual edição serve pra cortar este áudio. |
 | `encaixe.py` | Nota de encaixe faixa a faixa e casamento por duração (funções puras). |
@@ -104,7 +110,7 @@ tentativas de corte do álbum (`corte_audio.medidas_do_arquivo`).
 | `corte_album.py` | `AlbumCutter`: detectar silêncios → decidir → cortar → tags. |
 | `corte_estrategias.py` | `SmartCutter`: as 5 estratégias de corte, em ordem (ver o topo do arquivo). |
 | `corte_audio.py` | Medições do áudio (silêncio, RMS, envelope, início de nota). |
-| `ajustes.py` | `CutTuning`: todos os limiares do corte, cada um com o porquê. |
+| `ajustes.py` | `CutTuning`: todos os limiares do corte, cada um com o porquê; `GravarSozinho`: as travas do gravar sozinho. |
 | `youtube_chapters_extractor.py` | Capítulos do vídeo como faixas. |
 | **Disco e externos** | |
 | `downloader.py` | yt-dlp: informações, listas, download com bitrate mínimo, cookies. |
@@ -114,8 +120,8 @@ tentativas de corte do álbum (`corte_audio.medidas_do_arquivo`).
 | `metadata_manager.py` | Todas as tags dos MP3 (mutagen, ID3 v2.3): `gravar_tags`, `embutir_capa`, IDs do Discogs. |
 | `acervo_index.py` | Índice do que já está no disco (dedupe por master/release). |
 | `fila_unica.py` | A fila de trabalho, persistente. |
-| `pending_queue.py` | A lista "Precisam de você", persistente. |
-| `edicao_cortes.py` | Áudio guardado das pendências (`.audios_pasta_pendencia`) e as medidas dele (`_medidas/<id>.npz`); a edição dos cortes (`Edicao`: marcas com as faixas que começam nelas, nomes que acompanham os cortes, guias do Discogs, mudanças no som, candidatos de nome, tempos `#exato`); ler/juntar/regravar a pasta de um disco já cortado; o arquivo de correções (`logs/correcoes_do_editor.txt`) e as medidas de cada disco editado (`logs/medidas_do_editor/*.npz`, pra análise); nomes automáticos de uma lista sugerida quando o nº de pedaços bate (`_lista_que_bate`). |
+| `pending_queue.py` | A lista "Precisam de você", persistente (com os lembretes "Gravados com Track N", kind `track_n`, que não vão pra fila). |
+| `edicao_cortes.py` | Áudio guardado das pendências (`.audios_pasta_pendencia`) e as medidas dele (`_medidas/<id>.npz`); a edição dos cortes (`Edicao`: marcas com as faixas que começam nelas, nomes que acompanham os cortes, guias do Discogs, candidatos de nome, pedaços apagados, tempos `#exato`; a guia roxa saiu na 12.21); os cortes sugeridos e as listas do vídeo guardados com as medidas (abrir de novo é rápido); a edição de um disco sem Discogs igual pro editor e pro gravar sozinho (`edicao_sem_discogs`); ler/juntar/regravar a pasta de um disco já cortado; o arquivo de correções (`logs/correcoes_do_editor.txt`) e as medidas de cada disco editado (`logs/medidas_do_editor/*.npz`, pra análise); nomes automáticos de uma lista sugerida quando o nº de pedaços bate (`_lista_que_bate`). |
 | `registro.py` | Arquivo de log por rodada (chaves sempre mascaradas). |
 | `config.py` | `config.json` (pasta de saída, chaves, ajustes); converte o formato antigo guardando `config.json.antigo`. |
 | `util.py` | `sanitize`, `segundos_da_faixa`, `onde_quebrou`. |
@@ -138,7 +144,7 @@ tentativas de corte do álbum (`corte_audio.medidas_do_arquivo`).
 | textos e botões da janela | `janela_*.py`, `fila_trabalho.py` |
 | o que vai pro arquivo de log | `registro.py` e as chamadas `self._reg(...)` |
 | a tela "Conferir cortes" (botões, cores, teclas) | `janela_editor.py`; as regras das marcas em `edicao_cortes.Edicao` |
-| a sugestão roxa (mudança no som) | `edicao_cortes.medir_audio` / `mudancas_no_som` (`SOM_*`) |
+| quando um disco sem Discogs é gravado sozinho | `ajustes.GravarSozinho` (números) e `gravar_sozinho.avaliar` (travas) |
 | o que vai pro arquivo de correções | `edicao_cortes.registro_de_correcoes` (e `guardar_medidas_da_edicao`) |
 
 ## Regras que valem em todo o código

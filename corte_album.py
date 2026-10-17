@@ -15,7 +15,7 @@ from audio_util import FFMPEG_PATH, _subprocess_no_window_kwargs, duracao_do_arq
 from corte_audio import posicao_de_corte_no_silencio
 from corte_estrategias import SmartCutter
 from metadata_manager import gravar_tags
-from util import sanitize
+from util import PECA_APAGADA, sanitize
 
 
 class AlbumCutter:
@@ -147,7 +147,9 @@ class AlbumCutter:
         """
         Cortes nas posições informadas (SmartCutter.cut_at_positions) + ajuste
         ao início real de cada faixa. exato (cortes marcados no ✂ Editar): vale
-        o ponto marcado, sem procurar pausa perto nem ajustar.
+        o ponto marcado, sem procurar pausa perto nem ajustar; os pedaços
+        apagados no editor (nome PECA_APAGADA) não são gravados e os de
+        depois andam uma casa (12.21).
         """
         cutter = SmartCutter(self.metadata, all_gaps, self.audio_file, log_func=self.log_func,
                              catalogo=self.catalogo, artist=self.artist, album=self.album)
@@ -157,6 +159,14 @@ class AlbumCutter:
             return False
         if not exato:
             self.cuts = cutter.ajustar_ao_inicio_da_proxima(self.cuts)
+        else:
+            apagados = [c for c in self.cuts if c['title'] == PECA_APAGADA]
+            if apagados:
+                self.cuts = [c for c in self.cuts if c['title'] != PECA_APAGADA]
+                for n, c in enumerate(self.cuts, start=1):
+                    c['track'] = n
+                self._log(f"   🗑  {len(apagados)} pedaço(s) apagado(s) no ✂ Editar (não gravados): "
+                          + ', '.join(f"{c['start'] / 60:.2f}min" for c in apagados))
         return bool(self.cuts)
 
     def cut_tracks(self) -> bool:
@@ -224,6 +234,8 @@ class AlbumCutter:
     @staticmethod
     def _nota_da_faixa(cut: Dict) -> str:
         """Aviso gravado na tag (TXXX:DISCOFACIL_NOTA) de faixa que precisa ser conferida."""
+        if cut.get('nota'):
+            return cut['nota']                 # 12.21: disco gravado sozinho, sem o Discogs
         if cut.get('nome_palpite'):
             return 'nome por palpite (disco sem durações) - conferir'
         if cut.get('corte_estimado'):

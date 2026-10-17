@@ -7,9 +7,10 @@ disco, pra um disco já cortado). Ao salvar, chama `ao_salvar(edicao)`.
 
 Cores das marcas: azul = corte num silêncio; laranja tracejado = estimado
 (sem silêncio perto - conferir); verde-água = marcado por você. Pedaço que
-parece ter 2 músicas fica em vermelho na tabela. Guias (não são cortes):
-amarelo = onde o Discogs poria o corte, pelas durações; roxo = possível troca
-de música sem pausa (o som muda de repente).
+parece ter 2 músicas fica em vermelho na tabela; pedaço apagado ("🗑 Apagar
+pedaço", 12.21) fica cinza e riscado e não é gravado. Guias (não são cortes):
+amarelo = onde o Discogs poria o corte, pelas durações (a guia roxa, "o som
+muda de repente", saiu na 12.21).
 """
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -22,7 +23,8 @@ USUARIO = "#0D9488"
 CURSOR = "#16A34A"
 GUIA = "#EAB308"              # onde o Discogs poria o corte (pela soma das durações)
 GUIA_TEXTO = "#A16207"
-SOM = "#7C3AED"               # possível troca de música sem pausa (mudança no som)
+APAGADO = "#9CA3AF"           # pedaço apagado (🗑 Apagar pedaço): cinza e riscado, não é gravado
+APAGADO_TEXTO = "— apagado —"
 COR_TIPO = {'silencio': Cores.COLOR_ACCENT, 'estimado': Cores.COLOR_WARNING, 'usuario': USUARIO}
 JANELA_LARG, JANELA_ALT = 1360, 760            # tamanho preferido da tela
 JANELA_LARG_MIN, JANELA_ALT_MIN = 1320, 680    # a linha de botões inteira + a tabela (se a tela couber)
@@ -178,8 +180,7 @@ class JanelaEditor(Cores):
                                          (C.COLOR_WARNING, "estimado (conferir)", True, 3, leg),
                                          (USUARIO, "marcado por você", False, 3, leg),
                                          (SILENCIO, "silêncio", False, 7, leg), (CURSOR, "cursor", False, 3, leg),
-                                         (GUIA, "onde o Discogs poria o corte (pelas durações)", True, 3, leg2),
-                                         (SOM, "o som muda de repente (troca sem pausa?)", False, 3, leg2)):
+                                         (GUIA, "onde o Discogs poria o corte (pelas durações)", True, 3, leg2)):
             cv = tk.Canvas(onde, width=22, height=14, bg=C.COLOR_BG, highlightthickness=0)
             cv.create_line(2, 7, 20, 7, fill=cor, width=larg, dash=(4, 2) if tr else None)
             cv.pack(side='left')
@@ -202,9 +203,13 @@ class JanelaEditor(Cores):
                  fg=C.COLOR_TEXT).pack(side='left')
         self.b_colar = self._botao(topo_tab, "📋 Colar nomes", self.colar_nomes)
         self.b_colar.pack(side='right')
+        # 12.21: tirar um pedaço entre dois cortes (silêncio, defeito, uma música): o do cursor
+        self.b_apagar_peca = self._botao(topo_tab, "🗑 Apagar pedaço", self.apagar_peca, cor=C.COLOR_ERROR)
+        self.b_apagar_peca.pack(side='right', padx=(0, 6))
         tk.Label(dir_, text="Clique numa linha pra levar o cursor ao começo dela. Duplo clique no nome pra "
                             "escrever outro ou escolher entre os nomes achados (Discogs, descrição, capítulos, "
-                            "comentários).", font=('Segoe UI', 9), bg=C.COLOR_BG, fg=C.COLOR_TEXT_MUTED,
+                            "comentários). \"🗑 Apagar pedaço\" tira o pedaço do cursor (não é gravado; de novo, volta).",
+                 font=('Segoe UI', 9), bg=C.COLOR_BG, fg=C.COLOR_TEXT_MUTED,
                  wraplength=410, justify='left').pack(anchor='w', pady=(2, 0))
         est = ttk.Style()
         est.configure('Ed.Treeview', font=('Segoe UI', 9), rowheight=24)
@@ -223,6 +228,7 @@ class JanelaEditor(Cores):
         barra.pack(side='right', fill='y')
         self.tabela.tag_configure('longo', foreground=C.COLOR_ERROR)
         self.tabela.tag_configure('estimado', foreground=C.COLOR_WARNING)
+        self.tabela.tag_configure('apagado', foreground=APAGADO, font=('Segoe UI', 9, 'overstrike'))
         self.tabela.bind('<<TreeviewSelect>>', self._linha_escolhida)
         self.tabela.bind('<Double-1>', self._editar_nome)
         self.avisos = tk.Frame(dir_, bg=C.COLOR_BG)
@@ -310,6 +316,8 @@ class JanelaEditor(Cores):
         self._desenhar_zoom()
         self._preencher_tabela()
         self._avisos()
+        self.b_apagar_peca.config(text="↩ Desfazer apagar" if self.peca_do_cursor() in self.ed.apagados
+                                  else "🗑 Apagar pedaço")
         self.l_tempo.config(text=f"{mmss(self.cursor)} / {mmss(self.ed.duracao, False)}")
 
     def _desenhar_geral(self):
@@ -323,6 +331,10 @@ class JanelaEditor(Cores):
         for a, b, _ in self.ed.silencios:
             c.create_rectangle(self._x(a, L, 0, dur) - 1, 2, self._x(b, L, 0, dur) + 1, H - 2, fill=SILENCIO,
                                outline='')
+        for i, (a, b) in enumerate(self.ed.pecas()):
+            if i in self.ed.apagados:
+                c.create_rectangle(self._x(a, L, 0, dur), 2, self._x(b, L, 0, dur), H - 2, fill=APAGADO,
+                                   stipple='gray50', outline='')
         for i, m in enumerate(self.ed.marcas):
             x = self._x(m['pos'], L, 0, dur)
             c.create_line(x, 2, x, H - 2, fill=COR_TIPO[m['tipo']], width=3 if i == self.sel else 2,
@@ -330,9 +342,6 @@ class JanelaEditor(Cores):
         for p in self.ed.guias_discogs():
             x = self._x(p, L, 0, dur)
             c.create_line(x, H - 16, x, H - 2, fill=GUIA, width=3)
-        for p in self.ed.sugestoes_som:
-            x = self._x(p, L, 0, dur)
-            c.create_line(x, 2, x, 16, fill=SOM, width=3)
         v0, v1 = self.vista
         c.create_rectangle(self._x(v0, L, 0, dur), 1, self._x(v1, L, 0, dur), H - 1, outline=self.COLOR_TEXT, width=2)
         x = self._x(self.cursor, L, 0, dur)
@@ -351,14 +360,24 @@ class JanelaEditor(Cores):
                 c.create_rectangle(self._x(max(a, t0), L, t0, t1), topo, self._x(min(b, t1), L, t0, t1), base,
                                    fill=SILENCIO, outline='')
         self._onda(c, L, H, t0, t1, topo, base)
-        # nomes no meio de cada pedaço
+        # nomes no meio de cada pedaço (o nº é o da gravação: os apagados não contam)
         for i, ((a, b), nome) in enumerate(zip(self.ed.pecas(), self.ed.nomes())):
             ini, fim = max(a, t0), min(b, t1)
+            if fim <= ini:
+                continue
+            apagado = i in self.ed.apagados
+            if apagado:
+                x0, x1 = self._x(ini, L, t0, t1), self._x(fim, L, t0, t1)
+                c.create_rectangle(x0, topo, x1, base, fill=APAGADO, stipple='gray50', outline='')
+                c.create_line(x0, topo, x1, base, fill=APAGADO, width=2)
+                c.create_line(x0, base, x1, topo, fill=APAGADO, width=2)
             if fim - ini < (t1 - t0) * 0.06:
                 continue
-            c.create_text(self._x((ini + fim) / 2, L, t0, t1), 18, text=f"{i + 1}. {nome}"[:48],
-                          font=('Segoe UI', 9, 'bold'), fill=self.COLOR_TEXT)
-        # guias (não são cortes): amarelo = pela duração do Discogs; roxo = o som muda de repente
+            texto = APAGADO_TEXTO if apagado else f"{self.ed.numero_da_faixa(i)}. {nome}"
+            c.create_text(self._x((ini + fim) / 2, L, t0, t1), 18, text=texto[:48],
+                          font=('Segoe UI', 9, 'bold', 'overstrike') if apagado else ('Segoe UI', 9, 'bold'),
+                          fill=APAGADO if apagado else self.COLOR_TEXT)
+        # guias (não são cortes): amarelo = pela duração do Discogs
         guias = self.ed.guias_discogs()
         lim = [0.0] + guias + [self.ed.duracao]
         for k, (a, b) in enumerate(zip(lim, lim[1:])):
@@ -371,11 +390,6 @@ class JanelaEditor(Cores):
                 x = self._x(p, L, t0, t1)
                 c.create_line(x, base - 60, x, base + 6, fill=GUIA, width=3, dash=(3, 2))
                 c.create_polygon(x - 6, base + 14, x + 6, base + 14, x, base + 4, fill=GUIA, outline='')
-        for p in self.ed.sugestoes_som:
-            if t0 <= p <= t1:
-                x = self._x(p, L, t0, t1)
-                c.create_line(x, topo, x, topo + 60, fill=SOM, width=3)
-                c.create_polygon(x - 6, topo, x + 6, topo, x, topo + 10, fill=SOM, outline='')
         for i, m in enumerate(self.ed.marcas):
             if not (t0 <= m['pos'] <= t1):
                 continue
@@ -407,8 +421,12 @@ class JanelaEditor(Cores):
         sit = self.ed.situacao_pecas()
         durs_of = self.ed.duracoes_oficiais()
         for i, ((a, b), nome) in enumerate(zip(self.ed.pecas(), self.ed.nomes())):
-            marca = {'longo': '✗', 'estimado': '⚠', 'ok': '✓'}[sit[i]]
-            tv.insert('', 'end', iid=str(i), values=(i + 1, nome, mmss(a, False), mmss(b - a, False),
+            marca = {'longo': '✗', 'estimado': '⚠', 'ok': '✓', 'apagado': '🗑'}[sit[i]]
+            if sit[i] == 'apagado':
+                n_, nome = '—', APAGADO_TEXTO
+            else:
+                n_ = self.ed.numero_da_faixa(i)
+            tv.insert('', 'end', iid=str(i), values=(n_, nome, mmss(a, False), mmss(b - a, False),
                                                      mmss(durs_of[i], False) if durs_of[i] else '-', marca),
                       tags=(sit[i],))
         if escolhida and tv.exists(escolhida[0]):
@@ -422,24 +440,23 @@ class JanelaEditor(Cores):
             f.destroy()
         faltam, sobram, est = self.ed.faltam(), self.ed.sobram(), self.ed.estimadas()
         sit = self.ed.situacao_pecas()
-        longos = [i + 1 for i, s in enumerate(sit) if s == 'longo']
+        longos = [self.ed.numero_da_faixa(i) for i, s in enumerate(sit) if s == 'longo']   # o nº da tabela
         partes = []
-        dicas = self._dicas_de_troca(longos)
         if faltam:
             onde = f" - ouça a faixa {', '.join(map(str, longos[:3]))}" if longos else ""
             self._caixa("#FEF2F2", "#FECACA", self.COLOR_ERROR,
                         f"✗  Falta{'m' if faltam > 1 else ''} {faltam} corte{'s' if faltam > 1 else ''}",
-                        f"O Discogs tem {len(self.ed.oficiais)} músicas e há {len(self.ed.marcas) + 1} pedaços"
-                        f"{onde}. Ache a troca de música ouvindo e use \"✂ Marcar corte\".{dicas}")
+                        f"O Discogs tem {len(self.ed.oficiais)} músicas e há {len(self.ed.pecas_que_ficam())} pedaços"
+                        f"{onde}. Ache a troca de música ouvindo e use \"✂ Marcar corte\".")
             partes.append(f"faltam {faltam} corte{'s' if faltam > 1 else ''}")
         elif longos:
             self._caixa("#FEF2F2", "#FECACA", self.COLOR_ERROR, f"✗  Faixa {', '.join(map(str, longos[:3]))} "
-                        f"longa demais", f"Pode ter duas músicas juntas: ouça e marque o corte, se for o caso.{dicas}")
+                        f"longa demais", f"Pode ter duas músicas juntas: ouça e marque o corte, se for o caso.")
             partes.append("faixa longa demais")
         if sobram:
             self._caixa("#FEF2F2", "#FECACA", self.COLOR_ERROR,
                         f"✗  Sobra{'m' if sobram > 1 else ''} {sobram} corte{'s' if sobram > 1 else ''}",
-                        f"O Discogs tem {len(self.ed.oficiais)} músicas e há {len(self.ed.marcas) + 1} pedaços: "
+                        f"O Discogs tem {len(self.ed.oficiais)} músicas e há {len(self.ed.pecas_que_ficam())} pedaços: "
                         f"algum corte caiu dentro de uma música. Selecione e use \"🗑 Apagar marca\".")
             partes.append(f"sobra{'m' if sobram > 1 else ''} {sobram}")
         if est:
@@ -455,19 +472,16 @@ class JanelaEditor(Cores):
                         f"Os nomes vieram da lista \"{fonte}\" porque o nº de músicas dela bate com o de pedaços. "
                         f"Confira antes de salvar (duplo clique no nome pra trocar).")
             partes.append("nomes a conferir")
+        if self.ed.apagados:
+            n_ap = len(self.ed.apagados)
+            self._caixa("#F3F4F6", "#D1D5DB", "#4B5563", f"🗑  {n_ap} pedaço{'s' if n_ap > 1 else ''} "
+                        f"apagado{'s' if n_ap > 1 else ''}", "Não vão ser gravados (as faixas de depois andam uma "
+                        "casa). Pra trazer de volta: cursor no pedaço e \"↩ Desfazer apagar\".")
         if not partes:
             self._caixa("#F0FDF4", "#BBF7D0", self.COLOR_SUCCESS, "✓  Tudo confirmado",
                         "Todos os cortes estão em silêncios ou foram marcados por você.")
         self.chip.config(text=('⚠ ' + '  ·  '.join(partes)) if partes else '✓ tudo confirmado',
                          bg='#FEF3C7' if partes else '#DCFCE7', fg='#92400E' if partes else '#166534')
-
-    def _dicas_de_troca(self, longos):
-        """ "O som muda em 12:40 e 15:02" dentro das faixas longas (as marcas roxas)."""
-        pontos = [p for i in longos for p in self.ed.sugestoes_dentro(i - 1)]
-        if not pontos:
-            return ""
-        return (f" O som muda de repente em {', '.join(mmss(p, False) for p in pontos[:4])} (marca roxa): "
-                f"pode ser a troca - ouça ali.")
 
     def _caixa(self, fundo, borda, cor, titulo, texto):
         f = tk.Frame(self.avisos, bg=fundo, highlightthickness=1, highlightbackground=borda)
@@ -578,7 +592,7 @@ class JanelaEditor(Cores):
         L = self.c_zoom.winfo_width()
         self.arrastando = None
         t = self._t(evento.x, L, *self.vista)
-        guias = [p for p in self.ed.guias_discogs() + list(self.ed.sugestoes_som)
+        guias = [p for p in self.ed.guias_discogs()
                  if abs(self._x(p, L, *self.vista) - evento.x) <= 6]
         if guias:
             t = min(guias, key=lambda p: abs(p - t))      # clicou numa guia: o cursor vai exatamente pra ela
@@ -695,6 +709,20 @@ class JanelaEditor(Cores):
         self.sel = None
         self.redesenhar()
 
+    def peca_do_cursor(self) -> int:
+        return sum(1 for m in self.ed.marcas if m['pos'] <= self.cursor)
+
+    def apagar_peca(self):
+        """🗑 Apagar pedaço: o pedaço do cursor (clique na linha da tabela ou na onda) não é gravado; os
+        de depois andam uma casa. De novo no mesmo pedaço, volta. (12.21)"""
+        self._fechar_caixa_nome()
+        i = self.peca_do_cursor()
+        if i not in self.ed.apagados and len(self.ed.pecas_que_ficam()) <= 1:
+            messagebox.showinfo("Apagar pedaço", "É o único pedaço que sobrou: não dá pra apagar.", parent=self.win)
+            return
+        self.ed.alternar_apagado(i)
+        self.redesenhar()
+
     def _linha_escolhida(self, evento=None):
         sel = self.tabela.selection()
         if not sel:
@@ -708,7 +736,7 @@ class JanelaEditor(Cores):
     def _editar_nome(self, evento):
         linha = self.tabela.identify_row(evento.y)
         col = self.tabela.identify_column(evento.x)
-        if not linha or col != '#2':
+        if not linha or col != '#2' or int(linha) in self.ed.apagados:
             return
         x, y, larg, alt = self.tabela.bbox(linha, col)
         opcoes = [nome for _, nome in self.ed.candidatos_da_faixa(int(linha))]
@@ -770,7 +798,7 @@ class JanelaEditor(Cores):
         jan.transient(self.win)
         q = tk.Frame(jan, bg=self.COLOR_BG, padx=16, pady=14)
         q.pack(fill='both', expand=True)
-        tk.Label(q, text=f"Cole os nomes, um por linha, na ordem do disco ({len(self.ed.marcas) + 1} pedaços). "
+        tk.Label(q, text=f"Cole os nomes, um por linha, na ordem do disco ({len(self.ed.pecas_que_ficam())} pedaços). "
                          f"Número e tempo na frente (\"01 -\", \"3:12\") saem sozinhos.", font=('Segoe UI', 9),
                  bg=self.COLOR_BG, fg=self.COLOR_TEXT, wraplength=440, justify='left').pack(anchor='w')
         texto = tk.Text(q, width=60, height=14, font=('Segoe UI', 9))
@@ -793,7 +821,7 @@ class JanelaEditor(Cores):
         self._fechar_caixa_nome()
         faltam, sobram = self.ed.faltam(), self.ed.sobram()
         if faltam or sobram:
-            q = (f"O Discogs tem {len(self.ed.oficiais)} músicas e há {len(self.ed.marcas) + 1} pedaços "
+            q = (f"O Discogs tem {len(self.ed.oficiais)} músicas e há {len(self.ed.pecas_que_ficam())} pedaços "
                  f"({'faltam' if faltam else 'sobram'} {faltam or sobram} corte(s)). Os nomes das faixas vão "
                  f"ficar como estão na tabela. Salvar assim mesmo?")
             if not messagebox.askyesno("Salvar cortes", q, parent=self.win):

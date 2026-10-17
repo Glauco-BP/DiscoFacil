@@ -19,6 +19,9 @@ Anotado a partir da conversa com o usuário. Andamento:
 - **12.16 (feito):** regra única de "mesmo disco" em toda troca de edição (Vê, Os Cobras); tempos nos comentários do vídeo; botão "Informar tempos"; lojas mostram o título que não bateu; revisão independente dos pontos de troca e de nomes.
 - **12.17 (feito):** tela "Conferir cortes" pra ouvir o disco e acertar os cortes: botão "✂ Editar" em "Precisam de você" (áudio guardado em `.audios_pasta_pendencia`, cortes exatos) e "✂ Editar disco" na tela principal (corrige disco já cortado, guarda os arquivos de antes).
 - **12.18 (feito):** o editor tem a última palavra (os nomes acompanham os cortes); guias amarelas (Discogs) e roxas (o som muda); lista de nomes candidatos e "Colar nomes"; disco sem Discogs confirmado não usa o palpite (título do vídeo, capítulos); arquivo de correções do editor (`logs/correcoes_do_editor.txt`) pra ajustar os cortes automáticos; medidas guardadas.
+- **12.19 (feito):** primeira rodada com as correções do editor - "falta 1 faixa", nomes automáticos de lista do vídeo, medidas dos discos editados, pendência que falha volta pra lista.
+- **12.20 (feito):** YouTube Data API com requests (busca de playlists).
+- **12.21 (feito):** segunda rodada - disco sem Discogs gravado sozinho (propostas 1 e 2, trava dos 90 s), "Gravados com Track N", 🗑 Apagar pedaço, sem a guia roxa, editor mais rápido.
 - **Próximo:** analisar o arquivo de correções a cada ~2 semanas (lembrete marcado) e ajustar os cortes; quando estiver bom, desligar a gravação.
 
 ## 1. Duas notas em vez de uma "confiança"
