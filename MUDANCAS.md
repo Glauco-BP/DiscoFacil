@@ -1668,3 +1668,60 @@ Agora as duas chamam a YouTube Data API direto, com o `requests` que o programa 
 - sem internet.
 
 Testado em `testes/teste_youtube_api.py` (novo, com respostas da API simuladas, sem internet): busca com filtro de qualidade, cada motivo de falha, a listagem de canal paginada e uma verificação de que nenhum arquivo do programa usa mais a biblioteca do Google.
+
+## VERSÃO 12.21
+
+Segunda rodada do refinamento com as correções do editor: as 30 edições de 13 a 17/10/2026, com o "desenho do volume" de cada disco (`logs\medidas_do_editor`). As propostas foram testadas antes nessas edições, com script: das 30, 12 sairiam sozinhas e nenhuma errada.
+
+### ES. Disco sem Discogs que o vídeo explica: gravado sozinho (propostas 1 e 2)
+
+Quando o Discogs não acha o disco, acha com confiança baixa ou acha outro disco ("talvez outro disco"), o disco ia para "Precisam de você". Em boa parte desses, você só abria o ✂ Editar e salvava sem mexer. Agora, antes de mandar para a lista, o programa prepara os cortes **como o ✂ Editar prepararia** e grava sozinho quando passa em **todas** as travas (`gravar_sozinho.py`, limites em `ajustes.GravarSozinho`):
+
+- todos os cortes sugeridos em pausa clara (silêncio de 1 s ou mais), nenhum estimado;
+- pelo menos 4 pedaços e **nenhum com menos de 90 s**: todo corte que você apagou nessas 30 edições deixava um pedaço menor que isso (57, 32, 45, 87, 74, 48 e 35 s), e nos discos certos o menor tinha 107 s;
+- nenhum pedaço comprido demais (mais que o dobro da mediana e 90 s acima dela: duas músicas juntas);
+- o título do vídeo tem "Artista - Álbum" (com o traço). Vale disco com o nome do artista ("Som 3 - Som 3") e com nome de gênero ("Bola Sete - Bossa Nova"); não vale "Fulano - Full Album" nem título sem traço.
+
+Dois casos gravam:
+
+1. **O vídeo traz a lista das músicas** (capítulos, descrição ou comentário) com o mesmo nº de pedaços. Se a lista tem tempos, cada tempo tem de cair na pausa do seu corte (± 3 s). Isso segura o caso do Edu Lôbo, em que os tempos do comentário não batiam com o áudio. O disco sai com esses nomes, com a capa do vídeo e com a nota "conferir" nas tags (`TXXX:DISCOFACIL_NOTA`). Nas 30 edições, seriam 7 discos (Bola Sete, João Gilberto, Radamés "Retratos", Baden Powell Vol. 1, Copa Combo, Sete de Ouros, Tom Jobim "Love Strings"), todos com os cortes e os nomes que você deixou.
+2. **O vídeo não traz lista nenhuma.** O disco sai com "Track N" e entra em "Gravados com Track N" (ver ET). Seriam 5 (Antônio Adolfo e a Brazuca, João Donato "O Piano", Som 3, Tamba 4, Kiko Continentino), todos com os cortes certos.
+
+O que **não** grava sozinho e continua em "Precisam de você", agora com o motivo ("· não gravei sozinho: o pedaço 11 tem só 57 s"):
+- o palpite do Discogs nunca dá nome (pode ser outro disco);
+- uma lista do vídeo que não bate com os pedaços (ex.: 9 músicas para 11 pedaços) segura o disco: nem nomes, nem "Track N";
+- falhou o download, ou o título não tem "Artista - Álbum".
+
+Para conferir "não achado" e "confiança baixa", o programa agora **baixa o áudio** na rodada automática (antes só baixava quando você mandava). Se o disco ficar em "Precisam de você", o áudio já fica guardado e medido, e o ✂ Editar abre sem baixar. A regra de ouro continua: na dúvida, vai para "Precisam de você".
+
+Testado em `testes/teste_sozinho.py` (novo): as travas uma a uma, com os casos das 30 edições (Breno Sauer, Tempo Trio, Edu Lôbo, Búzios Live), e de ponta a ponta com discos sintéticos e um "YouTube" falso, sem internet.
+
+### ET. "Gravados com Track N" em "Precisam de você"
+
+Um filtro novo na lista, para você não esquecer de pôr os nomes. Entram nele os discos gravados sozinhos com "Track N", seja pela proposta 2 (ES), seja por "processar mesmo assim" ou pelo corte só pelos silêncios de um disco não achado. Não entram os que você salvou no ✂ Editar.
+- Eles **não** aparecem em "Todos os motivos", só no filtro deles. O botão da tela principal mostra "Precisam de você (5 + 2 Track N)".
+- **✂ Editar** abre o **✂ Editar disco** já na pasta gravada. Ao salvar lá, o disco sai da lista (também quando você o edita pelo "✂ Editar disco" da tela principal). Também sai com Remover.
+- Enfileirar, Corrigir busca e Informar tempos ficam desligados para eles (o disco já está gravado).
+
+### EU. 🗑 Apagar pedaço, nos dois editores
+
+Um botão novo, em cima da tabela das músicas, no ✂ Editar de "Precisam de você" e no ✂ Editar disco. Ele apaga o pedaço onde está o cursor (clique na linha da tabela ou na onda), entre duas marcas de corte. Serve para silêncio, defeito, aplauso ou uma música inteira. Para tirar um trecho do meio de uma música, marque um corte em cada lado e apague o pedaço do meio.
+- O pedaço fica cinza e riscado na onda, e aparece como "— apagado —" na tabela. As faixas seguintes andam uma casa.
+- Ele **não é gravado**: na pendência, o corte acontece, mas o pedaço não vira arquivo; no ✂ Editar disco, a pasta é regravada sem ele. Os arquivos de antes continuam guardados em `antes_da_edicao`.
+- Para desfazer antes de salvar, basta clicar de novo ("↩ Desfazer apagar").
+- Um pedaço apagado não conta para o nº de músicas: 11 pedaços com um silêncio apagado "batem" com 10 músicas do Discogs, e os nomes vão nos 10 que ficam.
+- Juntar (apagando a marca) um pedaço apagado com um que fica faz o pedaço inteiro voltar: apagar música por engano é pior.
+- O arquivo de correções anota os pedaços apagados (`pecas_apagadas`).
+
+### EV. Sem a guia roxa ("o som muda de repente")
+
+A guia roxa saiu do editor e da legenda. Ela acertava pouco, e calcular essa guia era a parte mais pesada de medir o áudio ao abrir.
+
+### EW. O editor abre mais rápido
+
+- O desenho do volume é medido **ao mesmo tempo** que as pausas e os cortes sugeridos, e não depois.
+- As listas do vídeo (capítulos, descrição e comentários, pela internet) são lidas **ao mesmo tempo** que o áudio é medido.
+- Os cortes sugeridos e as listas do vídeo ficam guardados com as medidas do disco. **Reabrir o mesmo disco** não mede de novo nem lê o vídeo pela internet: aqui, num disco de teste, a segunda abertura caiu de 5 s para 0,1 s. Os cortes guardados valem para a versão do programa e a lista de faixas com que foram calculados. Numa versão nova, ou se o Discogs mudar, são calculados de novo.
+- O disco que ficou em "Precisam de você" depois da conferência do ES já abre com tudo medido.
+
+Os cortes automáticos não mudaram: os 10 discos de conferência (`conferir_cortes.py`) continuam idênticos.

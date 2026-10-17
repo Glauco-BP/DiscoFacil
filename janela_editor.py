@@ -440,7 +440,7 @@ class JanelaEditor(Cores):
             f.destroy()
         faltam, sobram, est = self.ed.faltam(), self.ed.sobram(), self.ed.estimadas()
         sit = self.ed.situacao_pecas()
-        longos = [i + 1 for i, s in enumerate(sit) if s == 'longo']
+        longos = [self.ed.numero_da_faixa(i) for i, s in enumerate(sit) if s == 'longo']   # o nº da tabela
         partes = []
         if faltam:
             onde = f" - ouça a faixa {', '.join(map(str, longos[:3]))}" if longos else ""

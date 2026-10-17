@@ -1115,6 +1115,12 @@ class AlbumMixin:
                 fontes = [tuple(f) for f in guardadas]
             ed = edicao_cortes.edicao_sem_discogs(audio, f"{art} - {alb}", fontes, medidas=medidas)
             r = gravar_sozinho.avaliar(ed, fontes, art, alb)
+            ja = Path(base) / saida.nome_da_pasta(art, alb, ano)
+            if r['decisao'] and ja.exists() and list(ja.glob('*.mp3')):
+                # o mesmo vídeo de novo (canal, fila): o disco já foi gravado - não grava outro "(2)"
+                self.log(f"\n⏭️  Esse disco já foi gravado em {ja} - não gravo de novo")
+                edicao_cortes.esquecer_audio(base, url)
+                return True
             if not r['decisao']:
                 self._motivo_nao_gravou_sozinho = r['motivo']
                 self.log(f"   ✋ Não gravei sozinho: {r['motivo']} - fica em Precisam de você "
@@ -1135,6 +1141,8 @@ class AlbumMixin:
             self._motivo_nao_gravou_sozinho = None
             self.log(f"   ⚠️  Gravar sozinho pulado ({str(e)[:80]} [{onde_quebrou(e)}]) - fica em Precisam de você")
             return False
+        finally:
+            self._nota_das_faixas = None
 
     def _audio_pra_conferir(self, url):
         """O áudio do vídeo, guardado em .audios_pasta_pendencia (o mesmo que o ✂ Editar usa): o já

@@ -305,6 +305,12 @@ t(f'talvez outro disco (o corte do Discogs não cabe): gravado sozinho com "Trac
   and any(i['kind'] == 'track_n' and i['url'] == u9 for i in g.pending_queue.items)
   and any('outro disco' in l for l in logs))
 
+# o mesmo vídeo de novo (canal, fila): não grava um "(2)"
+logs.clear()
+g.process_single_video(u1)
+t('o mesmo vídeo de novo: o disco já está gravado, não grava outra pasta "(2)" nem vai pra lista',
+  len(pasta_de('João Gilberto - O Amor')) == 1 and not item(u1) and any('já foi gravado' in l for l in logs))
+
 # o ✂ Editar abre igual ao que o "gravar sozinho" avaliou (mesma preparação, sem o palpite)
 fontes6 = [('capítulos do vídeo', NOMES6, [c['start_time'] for c in capitulos(NOMES6, ini6, dur6)])]
 eda = EC.edicao_sem_discogs(wav6, 'x', fontes6)
