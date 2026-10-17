@@ -590,9 +590,13 @@ class FilaMixin:
 
         if hasattr(self, 'pendentes_button'):
             try:
-                n = len(self.pending_queue.items) if self.pending_queue else 0
-                self.pendentes_button.config(
-                    text=f"⏳  Precisam de você ({n})" if n else "⏳  Precisam de você")
+                itens = list(self.pending_queue.items) if self.pending_queue else []
+                k = sum(1 for i in itens if i.get('kind') == 'track_n')     # "Gravados com Track N" (12.21)
+                n = len(itens) - k
+                texto = f"⏳  Precisam de você ({n})" if n else "⏳  Precisam de você"
+                if k:
+                    texto = f"⏳  Precisam de você ({n} + {k} Track N)"
+                self.pendentes_button.config(text=texto)
             except Exception:
                 pass
 

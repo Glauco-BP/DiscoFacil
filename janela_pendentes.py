@@ -28,6 +28,7 @@ MOTIVOS = {
     'track_n': 'Gravados com Track N',          # 12.21: já gravado; falta pôr os nomes (✂ Editar)
 }
 TODOS = 'Todos os motivos'
+TRACK_N = 'track_n'    # "Gravados com Track N": só aparece no filtro dele, não em "Todos os motivos" (12.21)
 COL_YT = '#5'          # coluna "▶ YouTube" (a 5ª de dados)
 
 
@@ -220,6 +221,8 @@ class JanelaPendentes:
         motivo = self.filtro.get()
         if motivo and motivo != TODOS and not motivo.startswith(rotulo_motivo(it) + ' ('):
             return False
+        if (not motivo or motivo == TODOS) and it.get('kind') == TRACK_N and not self.vendo_descartados:
+            return False                # já gravado: fica só no filtro dele
         termo = self.busca.get().strip().lower()
         if termo:
             alvo = ' '.join(str(it.get(k) or '') for k in ('video_title', 'reason', 'url',
@@ -284,6 +287,10 @@ class JanelaPendentes:
         opcoes = [TODOS] + [f"{r} ({n})" for r, n in sorted(contagem.items())]
         atual = self.filtro.get()
         self.combo['values'] = opcoes
+        if atual == TODOS and not self.vendo_descartados and itens and all(
+                it.get('kind') == TRACK_N for it in itens):
+            # só há lembretes "Gravados com Track N": mostra o filtro deles (senão a lista abriria vazia)
+            atual = MOTIVOS[TRACK_N] + ' ('
         if atual != TODOS:
             base = atual.rsplit(' (', 1)[0]
             novo = next((o for o in opcoes if o.startswith(base + ' (')), None)
@@ -291,7 +298,7 @@ class JanelaPendentes:
 
     def _cabecalho(self):
         """Título, explicação e botão de alternância conforme a vista atual."""
-        n = len(self.fila_p.items)
+        n = len([i for i in self.fila_p.items if i.get('kind') != TRACK_N])
         d = len(self.fila_p.descartados)
         if self.vendo_descartados:
             self.titulo.config(text=f"🗑  Descartados ({d})")
@@ -302,9 +309,14 @@ class JanelaPendentes:
         else:
             self.titulo.config(text=f"⚠️  {n} álbum(ns) precisam de você")
             self.btn_descartados.config(text=f"🗑 Descartados ({d})")
-            self.explica.config(text="Álbuns que o programa não baixou sozinho - nada foi gravado. "
-                                     "Selecione (clique, Ctrl+clique, Shift+clique) e use os botões "
-                                     "embaixo. Clique em \"▶ abrir\" pra ver o vídeo; ⏳ = já está na fila.")
+            if self.filtro.get().startswith(MOTIVOS[TRACK_N] + ' ('):
+                self.explica.config(text="Discos JÁ GRAVADOS com nomes \"Track N\": selecione e use \"✂ Editar\" "
+                                         "pra pôr os nomes (abre o ✂ Editar disco). Ao salvar lá, o disco sai "
+                                         "desta lista.")
+            else:
+                self.explica.config(text="Álbuns que o programa não baixou sozinho - nada foi gravado. "
+                                         "Selecione (clique, Ctrl+clique, Shift+clique) e use os botões "
+                                         "embaixo. Clique em \"▶ abrir\" pra ver o vídeo; ⏳ = já está na fila.")
             self.win.title(f"Precisam de você ({n})")
 
     def _ordenar(self, chave):

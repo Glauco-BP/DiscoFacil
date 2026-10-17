@@ -937,9 +937,12 @@ t('Gravados com Track N: convive com a pendência do mesmo vídeo e diz quantas 
 app._tirar_das_pendencias('https://youtu.be/TrackNNNNNN', 'teste')
 t('...quando o vídeo fica pronto fora da fila, o lembrete continua (só a pendência sai)',
   [i['kind'] for i in pq.items if i['url'] == 'https://youtu.be/TrackNNNNNN'] == ['track_n'])
-J.recarregar(); esperar2(0.3)
-t(f'...é um filtro em "Precisam de você" ({[v_ for v_ in J.combo["values"] if "Track" in v_]})',
-  'Gravados com Track N (1)' in J.combo['values'])
+J.filtro.set('Todos os motivos'); J.recarregar(); esperar2(0.3)
+app._refresh_main_buttons_state()
+t(f'...é um filtro em "Precisam de você", fora de "Todos os motivos" ({[v_ for v_ in J.combo["values"] if "Track" in v_]}, '
+  f'"{app.pendentes_button.cget("text")}")',
+  'Gravados com Track N (1)' in J.combo['values'] and not J.tree.exists(it_tn['id'])
+  and '+ 1 Track N' in app.pendentes_button.cget('text'))
 J.filtro.set('Gravados com Track N (1)'); J.recarregar(); esperar2(0.2)
 J.tree.selection_set(it_tn['id']); esperar2(0.2)
 t('...só ele na lista; ✂ Editar ligado, Enfileirar / Corrigir busca / Informar tempos desligados (já está gravado)',

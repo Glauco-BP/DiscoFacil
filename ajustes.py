@@ -197,3 +197,19 @@ class CutTuning:
     FFMPEG_FULL_DISK_THRESHOLD_DB = -40
     FFMPEG_FULL_DISK_MIN_DURATION_SEC = 1.0  # silêncios reais, não respiros
     FFMPEG_FULL_DISK_TIMEOUT_SEC = 120
+
+
+class GravarSozinho:
+    """
+    12.21 - disco que o Discogs não confirmou (não achou, confiança baixa, talvez outro disco) gravado
+    sozinho, sem passar por "Precisam de você" (gravar_sozinho.py). Medidos nas 30 edições do ✂ Editar
+    de 13 a 17/10/2026: com estas travas, 12 sairiam sozinhos e nenhum errado.
+    """
+    PECAS_MIN = 4                  # menos pedaços que isso: não grava sozinho
+    PECA_MIN_SEC = 90.0            # todo corte que o Glauco apagou deixava um pedaço menor que isso (32 a 87 s)
+    PAUSA_CLARA_SEC = 1.0          # cada corte num silêncio de pelo menos isso
+    PAUSA_FOLGA_SEC = 0.5          # o corte pode estar até isso fora das pontas do silêncio
+    LONGO_X_MEDIANA = 2.0          # pedaço comprido (2 músicas?): mais que 2x a mediana...
+    LONGO_MAIS_SEC = 90.0          # ...e mais que a mediana + 90 s
+    TEMPO_FOLGA_SEC = 3.0          # lista com tempos: cada tempo cai na pausa do corte (± isso)
+    LISTA_MIN_NOMES = 3            # lista do vídeo com menos nomes que isso não conta

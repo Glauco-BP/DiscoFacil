@@ -807,6 +807,31 @@ class Edicao:
         return '\n'.join(linhas)
 
 
+def usar_tempos_do_video(ed: Edicao, fontes) -> Edicao:
+    """Disco sem Discogs confirmado: os cortes sugeridos vêm da 1ª lista do vídeo com tempos
+    (capítulos, descrição, comentário), ajustados à pausa, e os nomes dela valem quando o nº de pedaços
+    bate. O mesmo pro ✂ Editar e pro "gravar sozinho" (12.21)."""
+    com_tempos = next((f for f in fontes or [] if f[2]), None)
+    if com_tempos:
+        ed.fonte_dos_cortes = com_tempos[0]
+        ed.nomes_fixos = list(com_tempos[1])
+        ed.marcas = ed.marcas_dos_tempos(list(com_tempos[2])[1:])
+        ed.rotular()
+    return ed
+
+
+def edicao_sem_discogs(arquivo, titulo, fontes, medidas=None, log=None) -> Edicao:
+    """A edição que o ✂ Editar abriria pra um disco sem Discogs confirmado (sem o palpite do
+    Discogs): medidas, cortes sugeridos e as listas do vídeo como nomes sugeridos."""
+    ed = Edicao(arquivo, [], titulo=titulo)
+    ed.carregar(medidas=medidas, log=log)
+    usar_tempos_do_video(ed, fontes)
+    for fonte, nomes, _ in fontes or []:
+        ed.adicionar_candidatos(fonte, nomes)
+    ed.rotular()
+    return ed
+
+
 _LIMPA_LINHA = re.compile(r'^\s*(?:\(?\d{1,3}[.)\-–—:]?\s+|[A-D]\d{1,2}[.)\-–—]?\s+|[-–—•*]\s*)')
 
 

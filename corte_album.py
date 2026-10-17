@@ -234,6 +234,8 @@ class AlbumCutter:
     @staticmethod
     def _nota_da_faixa(cut: Dict) -> str:
         """Aviso gravado na tag (TXXX:DISCOFACIL_NOTA) de faixa que precisa ser conferida."""
+        if cut.get('nota'):
+            return cut['nota']                 # 12.21: disco gravado sozinho, sem o Discogs
         if cut.get('nome_palpite'):
             return 'nome por palpite (disco sem durações) - conferir'
         if cut.get('corte_estimado'):

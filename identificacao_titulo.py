@@ -40,6 +40,17 @@ class TituloMixin:
             return re.sub(r'\s*\(\d{4}\)\s*$', '', album).strip()
         return sem_ano or "Unknown Album"
 
+    def _titulo_tem_artista_e_album(self, title):
+        """O título tem "Artista - Álbum" (com o traço)? Sem ele, artista e álbum são o título inteiro
+        e não servem de nome pra gravar sozinho (12.21). Disco com o nome do artista ("Som 3 - Som 3")
+        vale."""
+        limpo = re.sub(r'\s*[-–—(]?\s*' + _FULL_ALBUM + r'\)?.*$', '', title or '',
+                       flags=re.IGNORECASE | re.UNICODE).strip()
+        ano = re.search(_ANO, limpo)
+        sem_ano = limpo[:ano.start()].strip() if ano else limpo
+        m = re.match(_SEPARADOR, sem_ano)
+        return bool(m and m.group(1).strip() and m.group(2).strip())
+
     def _extract_year(self, title):
         """Ano entre parênteses ou depois de um traço ("(1975)", "- 1975"), ou ''."""
         m = re.search(_ANO, title)

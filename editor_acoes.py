@@ -127,19 +127,21 @@ class EditorMixin:
         return self._janela_editor
 
     # ------------------------------------------------------------------ pendência
-    def _nomes_do_video(self, url, avisar, com_estado=False):
+    def _nomes_do_video(self, url, avisar, com_estado=False, info=None):
         """
         Listas de nomes que o próprio vídeo traz: [(fonte, nomes, inicios ou None)] - capítulos,
         tracklist da descrição e, se nenhuma das duas tem tempos, a lista com tempos de um comentário.
         Sem rede (ou com erro), lista vazia: o editor abre do mesmo jeito. com_estado=True devolve
-        (listas, deu_pra_ler_o_vídeo) - só o que foi lido de verdade fica guardado.
+        (listas, deu_pra_ler_o_vídeo) - só o que foi lido de verdade fica guardado. `info`: os dados do
+        vídeo já lidos (não lê de novo).
         """
         from catalogo import inicios_de_texto, pistas_do_video
         from youtube_chapters_extractor import YouTubeChaptersExtractor
         fontes = []
         try:
-            avisar("Lendo o vídeo (capítulos e descrição, pros nomes das músicas)...")
-            info = self.downloader.get_video_info(url) or {}
+            if not info:
+                avisar("Lendo o vídeo (capítulos e descrição, pros nomes das músicas)...")
+                info = self.downloader.get_video_info(url) or {}
         except Exception:
             info = {}
         dur = info.get('duration')
@@ -238,13 +240,8 @@ class EditorMixin:
             else:
                 fontes = [tuple(f) for f in guardadas]
             if not confirmado:
-                com_tempos = next((f for f in fontes if f[2]), None)
-                if com_tempos:
-                    # sem Discogs confirmado: os cortes sugeridos vêm dos tempos do vídeo (ajustados à pausa)
-                    ed.fonte_dos_cortes = com_tempos[0]
-                    ed.nomes_fixos = list(com_tempos[1])
-                    ed.marcas = ed.marcas_dos_tempos(com_tempos[2][1:])
-                    ed.rotular()
+                # sem Discogs confirmado: os cortes sugeridos vêm dos tempos do vídeo (ajustados à pausa)
+                EC.usar_tempos_do_video(ed, fontes)
             if confirmado:
                 ed.adicionar_candidatos('Discogs', [t.get('title') for t in dados.get('tracks') or []])
             elif dados.get('tracks') and (item.get('confidence_pct') or 0) >= PALPITE_MIN_PCT:
