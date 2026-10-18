@@ -81,6 +81,7 @@ def resumo_configuracoes(config, versao, confianca_minima=None, navegador_cookie
         f"Bitrate mínimo: {bitrate} kbps",
         f"Confiança mínima pra baixar sem perguntar: {confianca_minima}%",
         f"Navegador dos cookies: {nav}",
+        "Modo leve: " + ("ligado" if _valor(config, 'settings.modo_leve', True) else "desligado"),
         "Correções do ✂ Editar: " + ("guardadas em logs/correcoes_do_editor.txt"
                                      if _valor(config, 'settings.gravar_correcoes_editor', True) else "não guardadas"),
         "Chaves: " + " · ".join(f"{nome} {sim_nao(ch)}" for ch, nome in CHAVES),

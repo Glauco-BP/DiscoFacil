@@ -11,7 +11,8 @@ import subprocess
 from typing import Dict, List
 
 from ajustes import CutTuning
-from audio_util import FFMPEG_PATH, _subprocess_no_window_kwargs, duracao_do_arquivo, medir_bitrate_fonte, taxa_mp3_para
+from audio_util import (FFMPEG_PATH, _subprocess_no_window_kwargs, duracao_do_arquivo, medir_bitrate_fonte, modo_leve,
+                        taxa_mp3_para)
 from corte_audio import posicao_de_corte_no_silencio
 from corte_estrategias import SmartCutter
 from metadata_manager import gravar_tags
@@ -95,7 +96,8 @@ class AlbumCutter:
         
         all_gaps = {}
         
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        # modo leve (12.22): um limiar de cada vez, em vez de 3 ffmpeg ao mesmo tempo
+        with ThreadPoolExecutor(max_workers=1 if modo_leve() else 3) as executor:
             futures = {executor.submit(detect_ffmpeg, db, 1.0): name 
                       for name, db in thresholds}
             

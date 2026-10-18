@@ -16,6 +16,7 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 from pathlib import Path
 
+import audio_util
 import dependencias
 import registro
 from acervo_index import AcervoIndex
@@ -118,6 +119,7 @@ class FullTracksDownloaderGUI(Cores, LogMixin, FilaMixin, AlbumMixin, EdicaoMixi
         self.parar_trabalhador = False
         self._fila_item_ok = False
         self._carregar_confianca_minima()
+        self._carregar_modo_leve()
 
         # yt-dlp e Deno: estado no log e atualização automática
         self.dependencias = dependencias.GerenciadorDeDependencias(log=self.log)
@@ -685,6 +687,14 @@ class FullTracksDownloaderGUI(Cores, LogMixin, FilaMixin, AlbumMixin, EdicaoMixi
         except Exception:
             pass
         self.dependencias.verificar_ao_abrir()
+
+    def _carregar_modo_leve(self):
+        """12.22: "Modo leve" das Configurações (ligado de fábrica) - ffmpeg com prioridade baixa e uma
+        medição de cada vez (audio_util.MODO_LEVE)."""
+        try:
+            audio_util.MODO_LEVE = bool(self.config.get("settings.modo_leve", True))
+        except Exception:
+            audio_util.MODO_LEVE = True
 
     def _carregar_confianca_minima(self):
         """

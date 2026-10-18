@@ -454,6 +454,9 @@ def montar_pdf(fotos, destino, versao):
         ['Usar cookies do navegador', 'Usa o seu login do YouTube no navegador. Sem isso o YouTube às vezes '
          'só entrega áudio de qualidade baixa.', '<b>automático</b>, e deixe um navegador com login no '
          'YouTube.'],
+        ['Modo leve (recomendado para notebook)', 'O programa força menos o computador: o ffmpeg roda com '
+         'prioridade baixa e o ✂ Editar mede uma coisa de cada vez. Os cortes são os mesmos.', '<b>Marcado</b> '
+         '(padrão). Desmarque só num computador de mesa bem ventilado, pra ganhar velocidade.'],
         ['Guardar as correções feitas no ✂ Editar', 'Anota o que o programa sugeriu e o que você acertou no '
          'editor (seção 8), pra ajustar os cortes automáticos.', '<b>Marcado</b> (padrão). Desmarque quando o '
          'ajuste estiver pronto.'],

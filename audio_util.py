@@ -95,12 +95,29 @@ def _usar_ffmpeg_do_programa():
 _usar_ffmpeg_do_programa()
 
 
-def _subprocess_no_window_kwargs() -> dict:
-    """Kwargs de subprocess que evitam janela de console no Windows ({} nos demais)."""
-    if sys.platform == 'win32':
-        si = subprocess.STARTUPINFO()
-        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        return {'startupinfo': si, 'creationflags': subprocess.CREATE_NO_WINDOW}
+# 12.22 - "Modo leve" (Configurações, ligado de fábrica): o ffmpeg roda com prioridade baixa e o programa
+# não roda vários ao mesmo tempo (o editor mede uma coisa de cada vez, os 3 limiares de silêncio vão um
+# depois do outro). Num notebook, o processador em 100% por muito tempo esquentava a ponto de o Windows
+# cair (tela azul / desligamento, 17/10/2026). Os cortes são os mesmos; muda só a velocidade.
+MODO_LEVE = True
+PRIORIDADE_BAIXA_WIN = 0x00004000          # BELOW_NORMAL_PRIORITY_CLASS
+
+
+def modo_leve() -> bool:
+    return bool(MODO_LEVE)
+
+
+def _subprocess_no_window_kwargs(plataforma=None) -> dict:
+    """Kwargs de subprocess que evitam janela de console no Windows ({} nos demais); no modo leve, o
+    processo (ffmpeg/ffprobe) roda com prioridade baixa: o Windows dá preferência ao que você está usando."""
+    if (plataforma or sys.platform) == 'win32':
+        si = subprocess.STARTUPINFO() if hasattr(subprocess, 'STARTUPINFO') else None
+        if si is not None:
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+        if MODO_LEVE:
+            flags |= PRIORIDADE_BAIXA_WIN
+        return ({'startupinfo': si} if si is not None else {}) | {'creationflags': flags}
     return {}
 
 
