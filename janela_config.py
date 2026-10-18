@@ -20,8 +20,8 @@ class SettingsWindow(Cores):
         self.window.title("Configurações")
         # Esc fecha, como nas outras janelas.
         self.window.bind('<Escape>', lambda e: self.window.destroy())
-        self.window.geometry("640x700")
-        self.window.minsize(580, 620)
+        self.window.geometry("640x740")       # 12.22: + a caixa do "Modo leve"
+        self.window.minsize(580, 660)
         self.window.configure(bg=self.COLOR_BG)
         self.window.resizable(True, True)
         self.window.transient(parent)
@@ -182,7 +182,7 @@ class SettingsWindow(Cores):
 
         # --- Modo leve (12.22): menos esforço do computador ---
         leve_row = tk.Frame(output_frame, bg=self.COLOR_CARD)
-        leve_row.pack(anchor='w', fill='x', pady=(20, 0))
+        leve_row.pack(anchor='w', fill='x', pady=(16, 0))
         self.modo_leve_var = tk.BooleanVar(value=bool(self.config.get("settings.modo_leve", True)))
         tk.Checkbutton(leve_row, text="Modo leve (recomendado para notebook)", variable=self.modo_leve_var,
                        font=('Segoe UI', 10, 'bold'), bg=self.COLOR_CARD, fg=self.COLOR_TEXT,
@@ -201,7 +201,7 @@ class SettingsWindow(Cores):
 
         # --- Arquivo de correções do editor (pra ajustar o programa) ---
         cor_row = tk.Frame(output_frame, bg=self.COLOR_CARD)
-        cor_row.pack(anchor='w', fill='x', pady=(20, 0))
+        cor_row.pack(anchor='w', fill='x', pady=(10, 0))
         self.gravar_correcoes_var = tk.BooleanVar(value=bool(self.config.get("settings.gravar_correcoes_editor", True)))
         tk.Checkbutton(cor_row, text="Guardar as correções feitas no ✂ Editar", variable=self.gravar_correcoes_var,
                        font=('Segoe UI', 10, 'bold'), bg=self.COLOR_CARD, fg=self.COLOR_TEXT,

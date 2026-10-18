@@ -97,8 +97,21 @@ def esperar(seg=0.3):
         root.update(); time.sleep(0.02)
 
 
-sw = SettingsWindow(root, app.config, app); esperar()
+sw = SettingsWindow(root, app.config, app); esperar(0.8)
 t('Configurações: caixa "Modo leve (recomendado para notebook)", marcada', sw.modo_leve_var.get() is True)
+
+
+def caixas(w):
+    for c in w.winfo_children():
+        if c.winfo_class() == 'Checkbutton':
+            yield c
+        yield from caixas(c)
+
+
+cx = list(caixas(sw.window))
+fundo = sw.window.winfo_rooty() + sw.window.winfo_height()
+t(f'...as duas caixas aparecem inteiras na janela, sem cortar ({[c.cget("text")[:12] for c in cx]})',
+  len(cx) == 2 and all(c.winfo_ismapped() and c.winfo_rooty() + c.winfo_height() < fundo - 60 for c in cx))
 sw.modo_leve_var.set(False)
 sw.save_settings(); esperar()
 t('...desmarcar e salvar: vale na hora e fica gravado', AU.MODO_LEVE is False

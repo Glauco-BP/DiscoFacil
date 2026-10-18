@@ -1737,6 +1737,8 @@ Agora há a opção **"Modo leve (recomendado para notebook)"** nas Configuraç�
 - o ✂ Editar mede **uma coisa de cada vez** (o volume, as pausas e a leitura do vídeo), como na 12.20. Reabrir o mesmo disco continua quase imediato, porque o que foi medido fica guardado;
 - os 3 limiares de silêncio vão **um depois do outro**, e não mais em 3 ffmpeg juntos, também na rodada.
 
+A janela das Configurações ficou um pouco mais alta, para caber a caixa nova sem cortar a de baixo.
+
 Os cortes são os mesmos nos dois modos: o programa só fica um pouco mais lento. Desligado, funciona como a 12.21, tudo em paralelo. O log de cada rodada diz se o modo leve está ligado.
 
 Testado em `testes/teste_leve.py` (novo): a prioridade baixa no Windows, uma medição de cada vez (e em paralelo com o modo desligado), os mesmos cortes nos dois modos e a opção nas Configurações.

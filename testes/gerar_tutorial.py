@@ -143,7 +143,7 @@ def capturar():
     app._log_ir_para_o_fim()
     # configurações
     cfg = main.SettingsWindow(root, app.config, app)
-    cfg.window.geometry('640x700+20+20'); esperar(root, 0.8)
+    cfg.window.geometry('640x740+20+20'); esperar(root, 0.8)
     cfg.output_path_var.set('C:\\SOM')        # só na foto: não salva
     esperar(root)
     fotos['config'] = recorte(root, cfg.window, 'config')
