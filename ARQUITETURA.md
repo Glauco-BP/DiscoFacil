@@ -115,7 +115,7 @@ tentativas de corte do álbum (`corte_audio.medidas_do_arquivo`).
 | **Disco e externos** | |
 | `downloader.py` | yt-dlp: informações, listas, download com bitrate mínimo, cookies. |
 | `dependencias.py` | yt-dlp atualizado e Deno instalados sozinhos. |
-| `audio_util.py` | ffmpeg/ffprobe do programa, duração, bitrate, taxa do MP3. |
+| `audio_util.py` | ffmpeg/ffprobe do programa, duração, bitrate, taxa do MP3; o "Modo leve" (`MODO_LEVE`: prioridade baixa e uma medição de cada vez). |
 | `saida.py` | Nome da pasta, download com novas tentativas, capa (baixar e embutir). |
 | `metadata_manager.py` | Todas as tags dos MP3 (mutagen, ID3 v2.3): `gravar_tags`, `embutir_capa`, IDs do Discogs. |
 | `acervo_index.py` | Índice do que já está no disco (dedupe por master/release). |

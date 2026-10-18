@@ -1725,3 +1725,21 @@ A guia roxa saiu do editor e da legenda. Ela acertava pouco, e calcular essa gui
 - O disco que ficou em "Precisam de você" depois da conferência do ES já abre com tudo medido.
 
 Os cortes automáticos não mudaram: os 10 discos de conferência (`conferir_cortes.py`) continuam idênticos.
+
+## VERSÃO 12.22
+
+### EX. Modo leve (ligado de fábrica)
+
+Em 17/10, com a 12.21, o Windows do notebook caiu várias vezes (tela azul `PAGE_FAULT_IN_NONPAGED_AREA` no `cng.sys`, e desligamentos sem aviso), sempre durante uma rodada com o ✂ Editar aberto, às vezes com o YouTube tocando. A 12.21 fazia muita coisa ao mesmo tempo: ao abrir o editor, o desenho do volume, as pausas (3 ffmpeg) e a leitura do vídeo rodavam juntos, enquanto a rodada cortava um disco e baixava o próximo. Num notebook com o vídeo no mesmo chip do processador e 8 GB de memória, o processador ficava em 100% por muito tempo e esquentava. Um programa comum não derruba o Windows sozinho, mas esse esforço revela um ponto fraco de calor ou de memória.
+
+Agora há a opção **"Modo leve (recomendado para notebook)"** nas Configurações, **ligada de fábrica**:
+- todo ffmpeg e ffprobe do programa roda com **prioridade baixa** no Windows, e o Windows dá preferência ao que você está usando (editor, navegador);
+- o ✂ Editar mede **uma coisa de cada vez** (o volume, as pausas e a leitura do vídeo), como na 12.20. Reabrir o mesmo disco continua quase imediato, porque o que foi medido fica guardado;
+- os 3 limiares de silêncio vão **um depois do outro**, e não mais em 3 ffmpeg juntos, também na rodada.
+
+A janela das Configurações ficou um pouco mais alta, para caber a caixa nova sem cortar a de baixo.
+
+Os cortes são os mesmos nos dois modos: o programa só fica um pouco mais lento. Desligado, funciona como a 12.21, tudo em paralelo. O log de cada rodada diz se o modo leve está ligado.
+
+Testado em `testes/teste_leve.py` (novo): a prioridade baixa no Windows, uma medição de cada vez (e em paralelo com o modo desligado), os mesmos cortes nos dois modos e a opção nas Configurações.
+

@@ -6,7 +6,7 @@ log de cada álbum dizia "V10.8.4". Agora tudo lê daqui: título da janela,
 log, identificação do programa no MusicBrainz e o tutorial.
 """
 
-APP_VERSION = "12.21"
+APP_VERSION = "12.22"
 APP_NAME = "DiscoFácil"
 APP_TITULO = f"{APP_NAME} {APP_VERSION}"
 # Página do projeto: vai na identificação do programa pro Discogs e o MusicBrainz (eles pedem um contato)

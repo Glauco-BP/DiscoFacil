@@ -23,7 +23,7 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from audio_util import FFMPEG_PATH, _subprocess_no_window_kwargs, duracao_do_arquivo
+from audio_util import FFMPEG_PATH, _subprocess_no_window_kwargs, duracao_do_arquivo, modo_leve
 from corte_audio import posicao_de_corte_no_silencio
 from util import PECA_APAGADA, sanitize, segundos_da_faixa
 
@@ -331,7 +331,7 @@ class Edicao:
         """Mede o áudio (duração, volume, silêncios) e acha as marcas iniciais (ou usa `marcas`).
         `medidas`: arquivo .npz pra guardar/reaproveitar as medidas, os cortes sugeridos e as listas do
         vídeo (abrir de novo é rápido). 12.21: o volume (só pro desenho) é medido ao mesmo tempo que os
-        silêncios e os cortes sugeridos, numa thread."""
+        silêncios e os cortes sugeridos, numa thread - no modo leve (12.22, o padrão), antes deles."""
         import threading
         from corte_album import AlbumCutter
         from corte_estrategias import SmartCutter
@@ -350,7 +350,13 @@ class Edicao:
                 except Exception as e:
                     volume['erro'] = e
             medicao = threading.Thread(target=medir, daemon=True)
-            medicao.start()
+            if modo_leve():
+                medir()                       # 12.22, modo leve: uma coisa de cada vez
+                medicao = None
+                if 'erro' in volume:
+                    raise volume['erro']
+            else:
+                medicao.start()
         meta = {'tracks': [{'title': o['title'], 'duration': o['duracao']} for o in self.oficiais], 'title': self.titulo}
         ac = AlbumCutter('', self.titulo, self.arquivo, meta, str(Path(self.arquivo).parent), log_func=quieto)
         gaps = guardado.get('gaps') or ac.detect_gaps()

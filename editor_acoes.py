@@ -15,6 +15,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
 
+import audio_util
 import edicao_cortes as EC
 import saida
 from versao import APP_VERSION
@@ -228,12 +229,16 @@ class EditorMixin:
                 def ler_video():
                     leitura['fontes'], leitura['ok'] = self._nomes_do_video(url, avisar, com_estado=True)
                 fio = threading.Thread(target=ler_video, daemon=True)
-                fio.start()
+                if audio_util.modo_leve():
+                    ler_video()               # 12.22, modo leve: uma coisa de cada vez
+                else:
+                    fio.start()
             avisar("Medindo o áudio e os silêncios (alguns segundos)...")
             ed = EC.Edicao(audio, dados.get('tracks') if confirmado else [], titulo=titulo)
             ed.carregar(medidas=medidas)
             if guardadas is None:
-                fio.join()
+                if fio.is_alive():
+                    fio.join()
                 fontes = leitura.get('fontes') or []
                 if leitura.get('ok') and medidas:
                     EC.gravar_medidas(medidas, audio, fontes=[list(f) for f in fontes])

@@ -20,8 +20,8 @@ class SettingsWindow(Cores):
         self.window.title("Configurações")
         # Esc fecha, como nas outras janelas.
         self.window.bind('<Escape>', lambda e: self.window.destroy())
-        self.window.geometry("640x700")
-        self.window.minsize(580, 620)
+        self.window.geometry("640x740")       # 12.22: + a caixa do "Modo leve"
+        self.window.minsize(580, 660)
         self.window.configure(bg=self.COLOR_BG)
         self.window.resizable(True, True)
         self.window.transient(parent)
@@ -180,9 +180,28 @@ class SettingsWindow(Cores):
                      state="readonly", font=('Segoe UI', 10),
                      width=18).pack(anchor='w', ipady=3)
 
+        # --- Modo leve (12.22): menos esforço do computador ---
+        leve_row = tk.Frame(output_frame, bg=self.COLOR_CARD)
+        leve_row.pack(anchor='w', fill='x', pady=(16, 0))
+        self.modo_leve_var = tk.BooleanVar(value=bool(self.config.get("settings.modo_leve", True)))
+        tk.Checkbutton(leve_row, text="Modo leve (recomendado para notebook)", variable=self.modo_leve_var,
+                       font=('Segoe UI', 10, 'bold'), bg=self.COLOR_CARD, fg=self.COLOR_TEXT,
+                       activebackground=self.COLOR_CARD, selectcolor=self.COLOR_CARD).pack(side='left')
+        make_help_button(
+            leve_row,
+            title="Modo leve",
+            text="Ligado (o padrão): o programa força menos o computador. O ffmpeg roda com prioridade "
+                 "baixa (o Windows dá preferência ao que você está usando) e o programa não faz várias "
+                 "medições ao mesmo tempo: o ✂ Editar mede uma coisa de cada vez.\n\n"
+                 "Num notebook, o processador em 100% por muito tempo esquenta e pode até fazer o Windows "
+                 "cair. Os cortes são os mesmos; o programa fica só um pouco mais lento.\n\n"
+                 "Desligado: tudo em paralelo, o mais rápido possível (computador de mesa, bem ventilado).",
+            button_bg=self.COLOR_CARD,
+        ).pack(side='left', padx=(6, 0))
+
         # --- Arquivo de correções do editor (pra ajustar o programa) ---
         cor_row = tk.Frame(output_frame, bg=self.COLOR_CARD)
-        cor_row.pack(anchor='w', fill='x', pady=(20, 0))
+        cor_row.pack(anchor='w', fill='x', pady=(10, 0))
         self.gravar_correcoes_var = tk.BooleanVar(value=bool(self.config.get("settings.gravar_correcoes_editor", True)))
         tk.Checkbutton(cor_row, text="Guardar as correções feitas no ✂ Editar", variable=self.gravar_correcoes_var,
                        font=('Segoe UI', 10, 'bold'), bg=self.COLOR_CARD, fg=self.COLOR_TEXT,
@@ -342,6 +361,13 @@ class SettingsWindow(Cores):
         self.config.set("settings.cookies_browser", nav)
         try:
             self.config.set("settings.gravar_correcoes_editor", bool(self.gravar_correcoes_var.get()))
+        except AttributeError:
+            pass
+        try:
+            leve = bool(self.modo_leve_var.get())
+            self.config.set("settings.modo_leve", leve)
+            import audio_util
+            audio_util.MODO_LEVE = leve        # vale já, sem reabrir o programa
         except AttributeError:
             pass
         if nav in ('automático', 'automatico'):

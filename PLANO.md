@@ -22,6 +22,7 @@ Anotado a partir da conversa com o usuário. Andamento:
 - **12.19 (feito):** primeira rodada com as correções do editor - "falta 1 faixa", nomes automáticos de lista do vídeo, medidas dos discos editados, pendência que falha volta pra lista.
 - **12.20 (feito):** YouTube Data API com requests (busca de playlists).
 - **12.21 (feito):** segunda rodada - disco sem Discogs gravado sozinho (propostas 1 e 2, trava dos 90 s), "Gravados com Track N", 🗑 Apagar pedaço, sem a guia roxa, editor mais rápido.
+- **12.22 (feito):** "Modo leve" (ligado de fábrica) - ffmpeg com prioridade baixa e uma medição de cada vez, pro notebook não esquentar.
 - **Próximo:** analisar o arquivo de correções a cada ~2 semanas (lembrete marcado) e ajustar os cortes; quando estiver bom, desligar a gravação.
 
 ## 1. Duas notas em vez de uma "confiança"
